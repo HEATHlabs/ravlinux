@@ -1,0 +1,4 @@
+In order for the scripts to run, you need to have the environment variable $SB (SHMAC box)
+set to the ip of the SHMAC box.
+
+
