@@ -1,4 +1,5 @@
-In order for the scripts to run, you need to have the environment variable $SB (SHMAC box)
-set to the ip of the SHMAC box.
+In order for the scripts to run the following environment variables needs to be set:
 
+SB    - ip to the shmacbox      (129.241.102.250)
+RAV   - path to ravlinux repo   (/home/hakonfam/ravlinux)
 

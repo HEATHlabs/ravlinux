@@ -1,0 +1,2 @@
+#!/bin/bash
+$RAV/scripts/ravrun.sh $1
