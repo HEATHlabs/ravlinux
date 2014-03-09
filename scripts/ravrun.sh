@@ -1,22 +1,30 @@
 #!/bin/bash
 
+DIR=/home/pi
+
 if [[ $1 == *b* ]]
 then
   echo "Uploading new bootloader"
-  scp ../bootloader/something arv3@$SB:~/bootloader
+  make -C ../shboot
+  scp ../shboot/bootloader.bin arv3@$SB:$DIR/shboot
 fi
 
 if [[ $1 == *r* ]]
 then
   echo "Uploading ramdisk to SHMACBOX"
-  scp ../ramdisk/something arv3@$SB:~/ramdisk
+  scp ../ramdisk/something arv3@$SB:$DIR/ramdisk
 fi
 
 if [[ $1 == *l* ]]
 then
   echo "Uploading linux image to SHMACBOX"
-  scp ../linux-3.12.13/arch/arm/boot/Image arv3@$SB:~/Image
+  scp ../linux-3.12.13/arch/arm/boot/Image arv3@$SB:$DIR/Image
 fi
 
+if [[ $1 == *d* ]]
+then
+  echo "Uploading Device Tree Blob to SHMACBOX"
+  scp ../linux-3.12.13/arch/arm/boot/dts/shmac.dtb arv3@$SB:$DIR/dtb
+fi
 
 ssh arv3@$SB "~/ravlinux/shmacbox/ravrun.sh"

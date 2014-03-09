@@ -1,0 +1,36 @@
+/include/ "skeleton.dtsi"
+/{
+	compatible = "arm,arm7tdmi";
+	model = "SHMAC RAV";
+
+	interrupt-parent = <&intc>;
+	
+    	chosen {
+		bootargs = "earlyprintk console=ttyS0";
+	};
+	
+ 	soc {
+
+		compatible = "simple-bus";
+
+		intc: interrupt-controller@fffe2000 {
+			compatible = "shmac,shmac-intc";
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			#address-cells = <1>;
+			reg = <0xfffe2000 0x20>;
+		};
+
+		uart@ffff0000 {
+		      compatible = "shmac-uart";
+		      status = "disabled";
+		};
+
+		timer@fffe1000 {
+			compatible = "simple-bus";
+			reg = <0xfffe1000 0x20>;
+			interrupts = <2>;
+		};
+       		
+	};
+};

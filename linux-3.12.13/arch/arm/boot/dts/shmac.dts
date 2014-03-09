@@ -1,0 +1,17 @@
+/dts-v1/;
+/include/ "shmac.dtsi"
+
+/ {
+	compatible = "shmac";
+	model = "SHMAC";
+
+	memory {
+	};
+
+	soc {
+		uart@0xffff0000 {
+			       status="okey";
+		};
+	};
+};
+

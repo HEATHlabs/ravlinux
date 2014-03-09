@@ -1,0 +1,3 @@
+config ARCH_SHMAC
+       bool "SHMAC RAV"
+       select SHMAC_IRQ_CHIP
