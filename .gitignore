@@ -1,0 +1,11 @@
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+*.bin
+*.dis
+
+# Temp files
+# *.s
+#
