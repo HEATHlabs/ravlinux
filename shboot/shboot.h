@@ -3,5 +3,5 @@
 #define SYS_INT_STATUS 0x20
 #define INT_HOST_IRQ 0x2
 
-#define DTB_ENTRY 0x40000
-#define LINUX_ENTRY 0x80000
+#define DTB_ENTRY 0x4000
+#define LINUX_ENTRY 0x8000

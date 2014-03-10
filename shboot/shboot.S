@@ -42,7 +42,7 @@ reset:
 	ldr 	r0, =boot_message
 	bl printascii
 boot_message:
-	.asciz	"Hello world"
+	.asciz	"Shboot Bootloader Loading Linux\n"
 
 
 
@@ -62,7 +62,7 @@ boot_linux:
 	mov	r4, #0
 	mov	r5, #0
 	mov	r6, #0
-	b	.
+	
 	ldr	r7, =(LINUX_ENTRY)
 	mov 	pc, r7
 
