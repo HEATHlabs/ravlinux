@@ -1046,8 +1046,6 @@ source "arch/arm/mach-s5pv210/Kconfig"
 
 source "arch/arm/mach-exynos/Kconfig"
 
-source "arch/arm/mach-shmac/Kconfig"
-
 source "arch/arm/mach-shmobile/Kconfig"
 
 source "arch/arm/mach-sunxi/Kconfig"
