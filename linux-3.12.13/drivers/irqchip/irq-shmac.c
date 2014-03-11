@@ -14,6 +14,8 @@
 
 #define TILE_BASE           0xFFFE0000
 #define INT_CTRL0_BASE      (TILE_BASE+0x2000)
+#define SYS_BASE            0xFFFF0000
+#define SYS_IN_DATA         ((volatile u32*)(SYS_BASE+0x10))
 
 #define IRQ_STATUS		    0x00
 #define IRQ_RAW_STATUS		0x04
@@ -91,8 +93,9 @@ asmlinkage void __exception_irq_entry shmac_handle_irq(struct pt_regs *regs)
 	struct shmac_irq_data *s;
 	int handled = 0;
 	int irq;
-	u32 status;
+	u32 status = *SYS_IN_DATA;
 
+  printk("IRQ, status: 0x%x\n",status);
 	s = &shmac_irq_device;
 	while ((status  = readl(s->base + IRQ_STATUS))) {
 		irq = ffs(status) - 1;
@@ -125,8 +128,7 @@ void __init shmac_irq_init(void __iomem *base, const char *name, int irq_start,
 {
 	struct shmac_irq_data *s;
 	int i;
-
-  early_print("I AM HEEERE\n");
+  
 	s = &shmac_irq_device;
 	s->base = base;
 	s->chip.name = name;
@@ -134,6 +136,11 @@ void __init shmac_irq_init(void __iomem *base, const char *name, int irq_start,
 	s->chip.irq_mask = shmac_irq_mask;
 	s->chip.irq_unmask = shmac_irq_unmask;
 	s->valid = valid;
+
+	if (parent_irq != -1) {
+		irq_set_handler_data(parent_irq, s);
+		irq_set_chained_handler(parent_irq, shmac_irq_handle);
+	}
 
 	/* This will also allocate irq descriptors */
 	s->domain = irq_domain_add_simple(node, fls(valid), irq_start,
@@ -147,10 +154,12 @@ void __init shmac_irq_init(void __iomem *base, const char *name, int irq_start,
 			s->used_irqs++;
 		}
 
+	writel(s->valid, base + IRQ_ENABLE_SET);
+  i = * (int*) (base + IRQ_ENABLE_SET);
+  printk("Enableset: 0x%x\n", i);
 	pr_info("SHMAC IRQ chip %d \"%s\" @ %p, %u irqs\n",
 		shmac_irq_id, name, base, s->used_irqs);
 
-	shmac_irq_id++;
 }
 
 
@@ -161,12 +170,14 @@ int __init shmac_of_irq_init(struct device_node *node,
 	void __iomem *base;
 	u32 clear_mask;
 	u32 valid_mask;
+  u32 tmp;
 
 	if (WARN_ON(!node))
 		return -ENODEV;
 
-	base = of_iomap(node, 0);
-	WARN(!base, "unable to map shmac irq registers\n");
+  base = INT_CTRL0_BASE;
+//  base = of_iomap(node, 0);
+//  WARN(!base, "unable to map shmac irq registers\n");
 
 	if (of_property_read_u32(node, "clear-mask", &clear_mask))
 		clear_mask = 0;
@@ -174,10 +185,15 @@ int __init shmac_of_irq_init(struct device_node *node,
 	if (of_property_read_u32(node, "valid-mask", &valid_mask))
 		valid_mask = 0;
 
+  printk("Clear mask: 0x%x\n", clear_mask);
+  printk("VALID mask: 0x%x\n", valid_mask);
+
 	shmac_irq_init(base, node->name, 0, -1, valid_mask, node);
 
-	writel(clear_mask, base + IRQ_ENABLE_CLEAR);
-	writel(clear_mask, base + FIQ_ENABLE_CLEAR);
+
+//	writel(clear_mask, base + IRQ_ENABLE_CLEAR);
+//	writel(clear_mask, base + FIQ_ENABLE_CLEAR);
+
 
 	return 0;
 }

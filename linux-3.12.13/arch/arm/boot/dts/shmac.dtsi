@@ -12,22 +12,27 @@
  	soc {
 
 		compatible = "simple-bus";
-
+    #address-cells = <1>;
+    #size-cells = <1>;
 		intc:interrupt-controller@fffe2000 {
 			compatible = "shmac,shmac-intc";
+      reg = <0xfffe2000 0x20>;
 			interrupt-controller;
 			#interrupt-cells = <1>;
+      clear-mask = <0xffffffff>;
+      valid-mask = <0x00000006>;
 		};
 
 		uart@ffff0000 {
 		      compatible = "shmac-uart";
 		      status = "disabled";
+          interrupts = <2>;
 		};
 
 		timer@fffe1000 {
 			compatible = "simple-bus";
 			reg = <0xfffe1000 0x20>;
-			interrupts = <2>;
+			interrupts = <4>;
 		};
        		
 	};
