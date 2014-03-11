@@ -29,4 +29,38 @@ then
   scp $RL/linux-3.12.13/arch/arm/boot/dts/shmac.dtb arv3@$SB:$DIR/dtb.bin
 fi
 
-ssh arv3@$SB "cd $DIR;./ravrun.sh"
+if [[ $1 == *m* ]]
+then
+  SIZE=1000
+  DUMPFILE="dump"
+
+  if [ $# -eq 2 ]
+    then
+      SIZE=$2
+    fi
+
+  echo "Downloading memory dump with size (bytes) $SIZE" 
+
+  # Dump the memory, and save it to a file
+  ssh arv3@$SB "cd $DIR;./ravdump.sh $SIZE $DUMPFILE"
+
+  # Download the dumpfile
+  scp arv3@$SB:$DIR/$DUMPFILE .
+
+  # Disassemble the dumpfile
+  arm-none-eabi-objdump -D -marmv4t -Mreg-names-apcs -bbinary $DUMPFILE > $RL/$DUMPFILE
+  echo "dump saved to $RL/$DUMPFILE"
+  less $RL/$DUMPFILE
+
+fi
+
+if [[ $1 == *h* ]]
+then
+  echo "Usage: ravrun.sh {[bld] | m [SIZE_IN_BYTES]}"
+fi
+
+if [[ $1 == *d* ]] || [[ $1 == *l* ]] || [[ $1 == *b* ]]
+then
+  echo "Executing"
+  ssh arv3@$SB "cd $DIR;./ravrun.sh"
+fi
