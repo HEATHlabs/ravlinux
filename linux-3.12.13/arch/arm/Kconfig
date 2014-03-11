@@ -842,12 +842,10 @@ config ARCH_EXYNOS
 config ARCH_SHMAC
        bool "SHMAC Research Project"
        depends on !MMU
-       select CPU_V4T
        select NO_DMA
        select NO_IOPORT
        select SPARSE_IRQ
        select USE_OF
-       select ARM_NVIC
 
 config ARCH_SHARK
 	bool "Shark"

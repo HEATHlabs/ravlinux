@@ -2,11 +2,14 @@
 /include/ "shmac.dtsi"
 
 / {
-	compatible = "shmac";
+	compatible = "shmac,shmac";
 	model = "SHMAC";
 
 	memory {
+               device_type = "memory";
+               reg = <0x0 0x02000000>; // 32M at 0x0
 	};
+
 
 	soc {
 		uart@0xffff0000 {

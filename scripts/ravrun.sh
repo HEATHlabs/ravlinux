@@ -25,6 +25,7 @@ fi
 if [[ $1 == *d* ]]
 then
   echo "Uploading Device Tree Blob to SHMACBOX"
+  make $RL/linux-3.12.13 dtbs
   scp $RL/linux-3.12.13/arch/arm/boot/dts/shmac.dtb arv3@$SB:$DIR/dtb.bin
 fi
 

@@ -1,7 +1,13 @@
 #include "shboot.h"
-	b 	reset
+	b 	reset @ 0x0
+    b   undef   @ 0x4 UND
+    b swi
+    b pref
+    b data
+    b . // reserved
+    b irq
+    b firq
 
-	
 .macro addruart,rp,tmp1
 	ldr \rp, =SYS_BASE
 .endm
@@ -23,7 +29,33 @@
 	addruart	\rx, \tmp1
 .endm
 
-printascii:	
+undef:
+	ldr 	r0, =undef_message
+	bl printascii
+    b .
+swi:
+	ldr 	r0, =swi_message
+	bl printascii
+    b .
+pref:
+	ldr 	r0, =pref_message
+	bl printascii
+    b .
+data:
+	ldr 	r0, =data_message
+	bl printascii
+    b .
+irq:
+	ldr 	r0, =irq_message
+	bl printascii
+    b .
+firq:
+	ldr 	r0, =firq_message
+	bl printascii
+    b .
+
+	
+printascii:
 	addruart_current r3, r1, r2
 	b	2f
 1:	waituart r2, r3
@@ -41,18 +73,40 @@ printascii:
 reset:
 	ldr 	r0, =boot_message
 	bl printascii
+	b boot_linux
 boot_message:
-	.asciz	"Shboot Bootloader Loading Linux\n"
+	.ascii	"\n==========================================\n"
+	.ascii  "Shboot Bootloader Loading Linux"
+	.asciz  "\n==========================================\n"
+	.align
 
+undef_message:
+	.asciz "Undefined"
+	.align
+swi_message:
+	.asciz "SWI"
+	.align
+pref_message:
+	.asciz "Prefetch Abort"
+	.align
+data_message:
+	.asciz "Data Abort"
+	.align
+irq_message:
+	.asciz "Interrupt"
+	.align
+firq_message:
+	.asciz "Fast Interrupt"
+	.align
 
-
+	
 boot_linux:
 	/* Copy oftree to RAM */
 	@ldr	r0, =(DTB_DST)
 	@ldr	r1, =(DTB_SRC)
 	@ldr	r2, [r1, #4]
-	
-	@bl	memcpy
+
+    @bl	memcpy
 
 	/* boot Linux */
 	mov	r0, #0
@@ -62,7 +116,7 @@ boot_linux:
 	mov	r4, #0
 	mov	r5, #0
 	mov	r6, #0
-	
+
 	ldr	r7, =(LINUX_ENTRY)
 	mov 	pc, r7
 
