@@ -1,6 +1,6 @@
 /include/ "skeleton.dtsi"
 /{
-	compatible = "arm,arm7tdmi";
+	compatible = "shmac,shmac";
 	model = "SHMAC RAV";
 
 	interrupt-parent = <&intc>;
@@ -13,12 +13,10 @@
 
 		compatible = "simple-bus";
 
-		intc: interrupt-controller@fffe2000 {
+		intc:interrupt-controller@fffe2000 {
 			compatible = "shmac,shmac-intc";
 			interrupt-controller;
 			#interrupt-cells = <1>;
-			#address-cells = <1>;
-			reg = <0xfffe2000 0x20>;
 		};
 
 		uart@ffff0000 {

@@ -1,4 +1,16 @@
+#include <linux/bitops.h>
+#include <linux/irq.h>
+#include <linux/io.h>
+#include <linux/irqchip/versatile-fpga.h>
+#include <linux/irqdomain.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+
+#include <asm/exception.h>
+#include <asm/mach/irq.h>
 #include "irqchip.h"
+#include <asm/setup.h>
 
 #define TILE_BASE           0xFFFE0000
 #define INT_CTRL0_BASE      (TILE_BASE+0x2000)
@@ -33,11 +45,12 @@ struct shmac_irq_data {
 	u8 used_irqs;
 };
 
-
-/* we cannot allocate memory when the controllers are initially registered */
-static struct shmac_irq_data shmac_irq_devices[CONFIG_VERSATILE_FPGA_IRQ_NR]; //TODO hva er konstanten?
+/* We only use one of the IRQ-devices on SHMAC */
+static struct shmac_irq_data shmac_irq_device;
 static int shmac_irq_id;
 
+
+/* also acts as ACK */
 static void shmac_irq_mask(struct irq_data *d)
 {
 	struct shmac_irq_data *s = irq_data_get_irq_chip_data(d);
@@ -72,40 +85,20 @@ static void shmac_irq_handle(unsigned int irq, struct irq_desc *desc)
 	} while (status);
 }
 
-
-/*
- * Handle each interrupt in a single SHMAC IRQ controller.  Returns non-zero
- * if we've handled at least one interrupt.  This does a single read of the
- * status register and handles all interrupts in order from LSB first.
- */
-static int handle_one_shmac(struct shmac_irq_data *s, struct pt_regs *regs)
+/* Handle SHMAC irq */
+asmlinkage void __exception_irq_entry shmac_handle_irq(struct pt_regs *regs)
 {
+	struct shmac_irq_data *s;
 	int handled = 0;
 	int irq;
 	u32 status;
 
+	s = &shmac_irq_device;
 	while ((status  = readl(s->base + IRQ_STATUS))) {
 		irq = ffs(status) - 1;
 		handle_IRQ(irq_find_mapping(s->domain, irq), regs);
 		handled = 1;
 	}
-
-	return handled;
-}
-
-/*
- * Keep iterating over all registered SHMAC IRQ controllers until there are
- * no pending interrupts.
- */
-// TODO har vi ikke to interrupt kontrollere? Skal vi sette opp begge?
-asmlinkage void __exception_irq_entry shmac_handle_irq(struct pt_regs *regs)
-{
-	int i, handled;
-
-	do {
-		for (i = 0, handled = 0; i < shmac_irq_id; ++i)
-			handled |= handle_one_fpga(&shmac_irq_devices[i], regs);
-	} while (handled);
 }
 
 static int shmac_irqdomain_map(struct irq_domain *d, unsigned int irq,
@@ -113,9 +106,7 @@ static int shmac_irqdomain_map(struct irq_domain *d, unsigned int irq,
 {
 	struct shmac_irq_data *s = d->host_data;
 
-	/* Skip invalid IRQs, only register handlers for the real ones */
-	if (!(s->valid & BIT(hwirq)))
-		return -EPERM;
+  // Don't bother whith checking validity
 	irq_set_chip_data(irq, s);
 	irq_set_chip_and_handler(irq, &s->chip,
 				handle_level_irq);
@@ -135,22 +126,14 @@ void __init shmac_irq_init(void __iomem *base, const char *name, int irq_start,
 	struct shmac_irq_data *s;
 	int i;
 
-	if (shmac_irq_id >= ARRAY_SIZE(shmac_irq_devices)) { // TODO skal vi ha en eller to? Vi må sette denne configen
-		pr_err("%s: too few FPGA IRQ controllers, increase CONFIG_VERSATILE_FPGA_IRQ_NR\n", __func__);
-		return;
-	}
-	s = &shmac_irq_devices[shmac_irq_id];
+  early_print("I AM HEEERE\n");
+	s = &shmac_irq_device;
 	s->base = base;
 	s->chip.name = name;
 	s->chip.irq_ack = shmac_irq_mask;
 	s->chip.irq_mask = shmac_irq_mask;
 	s->chip.irq_unmask = shmac_irq_unmask;
 	s->valid = valid;
-
-	if (parent_irq != -1) {
-		irq_set_handler_data(parent_irq, s);
-		irq_set_chained_handler(parent_irq, shmac_irq_handle);
-	}
 
 	/* This will also allocate irq descriptors */
 	s->domain = irq_domain_add_simple(node, fls(valid), irq_start,
@@ -171,9 +154,8 @@ void __init shmac_irq_init(void __iomem *base, const char *name, int irq_start,
 }
 
 
-// TODO this is used when device tree is used
 #ifdef CONFIG_OF
-int __init shmac_irq_of_init(struct device_node *node,
+int __init shmac_of_irq_init(struct device_node *node,
 			    struct device_node *parent)
 {
 	void __iomem *base;
@@ -201,5 +183,5 @@ int __init shmac_irq_of_init(struct device_node *node,
 }
 #endif
 
-IRQCHIP_DECLARE(cortex_a15_gic, "arm,shmac", shmac_of_init);
+IRQCHIP_DECLARE(shmac, "shmac,shmac-intc", shmac_of_irq_init);
 

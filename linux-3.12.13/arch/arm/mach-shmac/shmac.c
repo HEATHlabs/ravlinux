@@ -3,7 +3,7 @@
 #include <linux/of_platform.h>
 
 #include <asm/mach/arch.h>
-
+#include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/irqchip.h>
 #include <linux/clocksource.h>
@@ -36,9 +36,7 @@ static char const *shmac_dt_compat[] = {
 };
 
 DT_MACHINE_START(SHMAC_DT, "SHMAC")
-//.init_irq = ircqchip_init,
 //	.map_io = shmac._map_io,
-//	.handle_irq = shmac_handle_irq,
 	.init_machine = shmac_init,
 //	.time = shmac_timer,
 	.dt_compat = shmac_dt_compat,
