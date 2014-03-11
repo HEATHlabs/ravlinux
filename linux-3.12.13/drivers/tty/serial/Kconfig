@@ -1439,6 +1439,19 @@ config SERIAL_EFM32_UART_CONSOLE
 	depends on SERIAL_EFM32_UART=y
 	select SERIAL_CORE_CONSOLE
 
+config SERIAL_SHMAC_UART
+        tristate "SHMAC UART/USART port"
+        depends on ARM && (ARCH_SHMAC || COMPILE_TEST)
+        select SERIAL_CORE
+        help
+          This driver support the USART and UART ports on
+          the SHMAC platform.
+
+config SERIAL_SHMAC_UART_CONSOLE
+        bool "SHMAC UART/USART console support"
+        depends on SERIAL_SHMAC_UART=y
+        select SERIAL_CORE_CONSOLE
+
 config SERIAL_TILEGX
 	tristate "TILE-Gx on-chip serial port support"
 	depends on TILEGX
@@ -1447,6 +1460,7 @@ config SERIAL_TILEGX
 	---help---
 	  This device provides access to the on-chip UARTs on the TILE-Gx
 	  processor.
+
 
 config SERIAL_ARC
 	tristate "ARC UART driver support"

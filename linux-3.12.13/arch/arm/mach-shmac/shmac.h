@@ -8,6 +8,6 @@
 
 #define SHMAC_REGS_PHYS_BASE 0x0
 #define SHMAC_REGS_VIRT_BASE IOMEM(0x0)
-#define SHMAR_REGS_SIZE SZ_1M
+#define SHMAC_REGS_SIZE SZ_1M
 
 #endif /* __SHMAC_H */
