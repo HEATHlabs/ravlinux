@@ -15,6 +15,11 @@ config ARM_NVIC
 	select IRQ_DOMAIN
 	select GENERIC_IRQ_CHIP
 
+config ARM_SHMAC_IC
+	bool
+	select IRQ_DOMAIN
+	select GENERIC_IRQ_CHIP
+
 config ARM_VIC
 	bool
 	select IRQ_DOMAIN

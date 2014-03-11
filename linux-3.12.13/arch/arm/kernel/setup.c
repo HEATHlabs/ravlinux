@@ -232,11 +232,9 @@ static int __get_cpu_architecture(void)
 	if ((read_cpuid_id() & 0x0008f000) == 0) {
 		cpu_arch = CPU_ARCH_UNKNOWN;
 	} else if ((read_cpuid_id() & 0x0008f000) == 0x00007000) {
-		cpu_arch = (read_cpuid_id() & (1 << 23)) ? CPU_ARCH_ARMv4T : CPU_ARCH_ARMv3;
+		cpu_arch = (read_cpuid_id() & (1 << 23)) ? CPU_ARCH_ARMv4T : CPU_ARCH_ARMv4T;
 	} else if ((read_cpuid_id() & 0x00080000) == 0x00000000) {
 		cpu_arch = (read_cpuid_id() >> 16) & 7;
-		if (cpu_arch)
-			cpu_arch += CPU_ARCH_ARMv3;
 	} else if ((read_cpuid_id() & 0x000f0000) == 0x000f0000) {
 		unsigned int mmfr0;
 

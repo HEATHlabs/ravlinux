@@ -840,12 +840,13 @@ config ARCH_EXYNOS
 	  Support for SAMSUNG's EXYNOS SoCs (EXYNOS4/5)
 
 config ARCH_SHMAC
-       bool "SHMAC Research Project"
+       bool "SHMAC"
        depends on !MMU
        select NO_DMA
        select NO_IOPORT
        select SPARSE_IRQ
        select USE_OF
+       select ARM_SHMAC_IC
 
 config ARCH_SHARK
 	bool "Shark"
@@ -1591,6 +1592,7 @@ endchoice
 
 config PAGE_OFFSET
 	hex
+  default PHYS_OFFSET if !MMU
 	default 0x40000000 if VMSPLIT_1G
 	default 0x80000000 if VMSPLIT_2G
 	default 0xC0000000

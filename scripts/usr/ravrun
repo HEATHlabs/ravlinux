@@ -1,2 +1,2 @@
 #!/bin/bash
-$RL/scripts/ravrun.sh $1
+$RL/scripts/ravrun.sh $1 $2
