@@ -847,6 +847,9 @@ config ARCH_SHMAC
        select SPARSE_IRQ
        select USE_OF
        select ARM_SHMAC_IC
+       select GENERIC_IRQ_CHIP
+       select IRQ_DOMAIN
+       select MULTI_IRQ_HANDLER
 
 config ARCH_SHARK
 	bool "Shark"
