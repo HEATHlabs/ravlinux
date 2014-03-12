@@ -14,7 +14,8 @@
 		compatible = "simple-bus";
     #address-cells = <1>;
     #size-cells = <1>;
-		intc:interrupt-controller@fffe2000 {
+    ranges;
+		intc: interrupt-controller@fffe2000 {
 			compatible = "shmac,shmac-intc";
       reg = <0xfffe2000 0x20>;
 			interrupt-controller;
