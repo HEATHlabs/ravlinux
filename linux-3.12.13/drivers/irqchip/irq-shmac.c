@@ -19,7 +19,7 @@
 #include <asm/setup.h>
 
 #define TILE_BASE           0xFFFE0000
-#define INT_CTRL0_BASE      ((uint32_t*)TILE_BASE+0x2000)
+#define INT_CTRL0_BASE      ((u32*)TILE_BASE+0x2000)
 #define SYS_BASE            0xFFFF0000
 #define SYS_IN_DATA         ((volatile u32*)(SYS_BASE+0x10))
 
@@ -34,32 +34,36 @@
 #define FIQ_ENABLE		    0x28
 #define FIQ_ENABLE_SET		0x28
 #define FIQ_ENABLE_CLEAR	0x2C
-#define IC0_IRQ_STATUS      ((volatile uint32_t*)(INT_CTRL0_BASE+0x00))
-#define IC0_IRQ_RAWSTAT     ((volatile uint32_t*)(INT_CTRL0_BASE+0x04))
-#define IC0_IRQ_ENABLESET   ((volatile uint32_t*)(INT_CTRL0_BASE+0x08)) 
-#define IC0_IRQ_ENABLECLR   ((volatile uint32_t*)(INT_CTRL0_BASE+0x0c)) 
-#define IC0_INT_SOFTSET     ((volatile uint32_t*)(INT_CTRL0_BASE+0x10))
-#define IC0_INT_SOFTCLEAR   ((volatile uint32_t*)(INT_CTRL0_BASE+0x14))
-#define IC0_FIRQ_STATUS     ((volatile uint32_t*)(INT_CTRL0_BASE+0x20))  
-#define IC0_FIRQ_RAWSTAT    ((volatile uint32_t*)(INT_CTRL0_BASE+0x24))  
-#define IC0_FIRQ_ENABLESET  ((volatile uint32_t*)(INT_CTRL0_BASE+0x28))  
-#define IC0_FIRQ_ENABLECLR  ((volatile uint32_t*)(INT_CTRL0_BASE+0x2c)) 
+#define IC0_IRQ_STATUS      ((volatile u32*)(INT_CTRL0_BASE+0x00))
+#define IC0_IRQ_RAWSTAT     ((volatile u32*)(INT_CTRL0_BASE+0x04))
+#define IC0_IRQ_ENABLESET   ((volatile u32*)(INT_CTRL0_BASE+0x08)) 
+#define IC0_IRQ_ENABLECLR   ((volatile u32*)(INT_CTRL0_BASE+0x0c)) 
+#define IC0_INT_SOFTSET     ((volatile u32*)(INT_CTRL0_BASE+0x10))
+#define IC0_INT_SOFTCLEAR   ((volatile u32*)(INT_CTRL0_BASE+0x14))
+#define IC0_FIRQ_STATUS     ((volatile u32*)(INT_CTRL0_BASE+0x20))  
+#define IC0_FIRQ_RAWSTAT    ((volatile u32*)(INT_CTRL0_BASE+0x24))  
+#define IC0_FIRQ_ENABLESET  ((volatile u32*)(INT_CTRL0_BASE+0x28))  
+#define IC0_FIRQ_ENABLECLR  ((volatile u32*)(INT_CTRL0_BASE+0x2c)) 
 
 #define TIMER0_BASE     (TILE_BASE+0x1000)
-#define TIMER0_LOAD      ((volatile uint32_t*)(TIMER0_BASE+0x00))
-#define TIMER0_VALUE     ((volatile uint32_t*)(TIMER0_BASE+0x04))
-#define TIMER0_CTRL      ((volatile uint32_t*)(TIMER0_BASE+0x08))
-#define TIMER0_CLR       ((volatile uint32_t*)(TIMER0_BASE+0x0c))
+#define TIMER0_LOAD      ((volatile u32*)(TIMER0_BASE+0x00))
+#define TIMER0_VALUE     ((volatile u32*)(TIMER0_BASE+0x04))
+#define TIMER0_CTRL      ((volatile u32*)(TIMER0_BASE+0x08))
+#define TIMER0_CLR       ((volatile u32*)(TIMER0_BASE+0x0c))
 #define TIMER_CTRL_ENABLE (1<<7)
 #define TIMER_CTRL_PERIODIC (1<<6)
 #define TIMER_CTRL_SCALE_256 0
 #define TIMER_CTRL_SCALE_16 4
 #define TIMER_CTRL_SCALE_1 8
+#define INT_MASK_SOFT 1
 #define INT_MASK_HOST 2
+#define INT_MASK_TIMER0 4
+#define INT_MASK_TIMER1 8
+#define INT_MASK_TIMER2 16
 
 static void __iomem *base;
 static struct irq_domain *shmac_irq_domain;
-
+static u32 valid_mask;
 /* We only use one of the IRQ-devices on SHMAC */
 static int shmac_irq_id;
 
@@ -71,9 +75,10 @@ static void shmac_irq_ack(struct irq_data *irqd)
 static void shmac_irq_mask(struct irq_data *d)
 {
   unsigned int irq = irqd_to_hwirq(d);
-  unsigned int pos = ffs(irq);
-  printk("SHMIRQ: MASK nr: %d, at pos: %d", irq,pos); 
-	writel((1 << pos), base + IRQ_ENABLE_CLEAR);
+  unsigned int pos = ffs(irq)-1;
+  u32 addr = base + IRQ_ENABLE_CLEAR;
+  printk("SHMIRQ: MASK nr: %d, at pos: %d, to addr 0x%x", irq,pos,addr); 
+	writel((1 << pos),IC0_IRQ_ENABLECLR);
 }
 
 
@@ -97,19 +102,14 @@ static asmlinkage void __exception_irq_entry shmac_handle_irq(struct pt_regs *re
 {
 	int handled = 0;
 	int irq;
-	u32 status = *IC0_IRQ_STATUS;
-	irq = ffs(status) - 1;
 
-  printk("SHMACIRQ: 0x%x",status);
-  printk("\tnr: %d\n\n", irq);
-	writel(0xffffffff, IC0_IRQ_ENABLECLR);
-	writel(0x0, IC0_IRQ_ENABLESET);
-  while(true);
-	while ((status  = readl(IC0_IRQ_STATUS))) {
-		irq = ffs(status) - 1;
-		//handle_IRQ(irq_find_mapping(shmac_irq_domain, irq), regs);
-		handled = 1;
-	}
+	u32 status;
+  u32 data   = *SYS_IN_DATA;
+	status  = readl(base + IRQ_STATUS);
+  irq = ffs(status) - 1;
+  printk("Softirq: %d\n", irq_find_mapping(shmac_irq_domain, irq));
+  handle_IRQ(irq_find_mapping(shmac_irq_domain, irq), regs);
+  handled = 1;
 }
 
 static int shmac_irqdomain_map(struct irq_domain *d, unsigned int irq,
@@ -154,26 +154,18 @@ void __init shmac_irq_init(void __iomem *base, const char *name,
 int __init shmac_of_irq_init(struct device_node *node,
 			    struct device_node *parent)
 {
-	void __iomem *base;
-	u32 valid_mask = 0x1f;
+	valid_mask = 0x6;
 
-  base = of_iomap(node, 0);
-  WARN(!base, "unable to map shmac irq registers\n");
+  base = 0xfffe2000; 
+  // WARN(!base, "unable to map shmac irq registers\n");
 
   /* Set up IRQ-domain */
-	shmac_irq_init(base, node->name, -1, valid_mask, node);
-
-  // enable timer 0
-  //*TIMER0_LOAD = 60000; // 16 bit register, with implicit left shift 8
-  //*TIMER0_CTRL = TIMER_CTRL_ENABLE | TIMER_CTRL_PERIODIC | TIMER_CTRL_SCALE_1;
-
-  /* Clear all pending interrupts */
-//	writel(0xffffffff, base + IRQ_ENABLE_CLEAR);
+  shmac_irq_init(base, node->name, -1, valid_mask, node);
 
   /* Enable the interrupts */
-  //writel(valid_mask, base + IRQ_ENABLE_SET);
+  writel((1<<1), base + IRQ_ENABLE_SET);
 
-	set_handle_irq(shmac_handle_irq);
+  set_handle_irq(shmac_handle_irq);
 
 	return 0;
 }
