@@ -7,5 +7,5 @@
 *.dis
 
 # Temp files
-# *.s
-#
+*.s
+

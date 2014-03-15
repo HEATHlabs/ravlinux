@@ -3,10 +3,8 @@
     compatible = "shmac,shmac";
     model = "SHMAC RAV";
 
-    interrupt-parent = <&intc>;
-
     chosen {
-        bootargs = "earlyprintk console=ttyS0";
+        bootargs = "earlyprintk console=ttySHMC";
     };
 
     soc {
