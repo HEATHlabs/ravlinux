@@ -63,111 +63,85 @@
 
 static void __iomem *base;
 static struct irq_domain *shmac_irq_domain;
-static u32 valid_mask;
 /* We only use one of the IRQ-devices on SHMAC */
 static int shmac_irq_id;
 
 static void shmac_irq_ack(struct irq_data *irqd)
 {
-  printk("SHMACK (empty)\n");
+    printk("SHMACK (empty)\n");
 }
 
 static void shmac_irq_mask(struct irq_data *d)
 {
-  unsigned int irq = irqd_to_hwirq(d);
-  unsigned int pos = ffs(irq)-1;
-  u32 addr = base + IRQ_ENABLE_CLEAR;
-  printk("SHMIRQ: MASK nr: %d, at pos: %d, to addr 0x%x", irq,pos,addr); 
-	writel((1 << pos),IC0_IRQ_ENABLECLR);
+    unsigned int irq = irqd_to_hwirq(d);
+    unsigned int pos = ffs(irq)-1;
+    printk("SHMIRQ: MASK nr: %d, at pos: %d\n", irq,pos); 
+    writel((1 << pos),IC0_IRQ_ENABLECLR);
 }
 
 
 static void shmac_irq_unmask(struct irq_data *d)
 {
-  unsigned int irq = irqd_to_hwirq(d);
-  unsigned int pos = ffs(irq);
-  printk("SHMIRQ: UNMASK nr: 0x%x\n", irq); 
-	writel((1 << pos), base + IRQ_ENABLE_SET);
+    unsigned int irq = irqd_to_hwirq(d);
+    unsigned int pos = ffs(irq);
+    printk("SHMIRQ: UNMASK nr: 0x%x\n", irq); 
+    writel((1 << pos), base + IRQ_ENABLE_SET);
 }
 
 static struct irq_chip shmac_irq_chip= {
-	.name		= "shmac_irq",
-	.irq_ack	= shmac_irq_ack,
-	.irq_mask	= shmac_irq_mask,
-	.irq_unmask	= shmac_irq_unmask,
+    .name		= "shmac_irq",
+    .irq_ack	= shmac_irq_ack,
+    .irq_mask	= shmac_irq_mask,
+    .irq_unmask	= shmac_irq_unmask,
 };
 
 /* Handle SHMAC irq */
 static asmlinkage void __exception_irq_entry shmac_handle_irq(struct pt_regs *regs)
 {
-	int handled = 0;
-	int irq;
+    int handled = 0;
+    int irq;
 
-	u32 status;
-  u32 data   = *SYS_IN_DATA;
-	status  = readl(base + IRQ_STATUS);
-  irq = ffs(status) - 1;
-  printk("Softirq: %d\n", irq_find_mapping(shmac_irq_domain, irq));
-  handle_IRQ(irq_find_mapping(shmac_irq_domain, irq), regs);
-  handled = 1;
+    u32 status;
+    status  = readl(base + IRQ_STATUS);
+    irq = ffs(status) - 1;
+    printk("Softirq: %d\n", irq_find_mapping(shmac_irq_domain, irq));
+    handle_IRQ(irq_find_mapping(shmac_irq_domain, irq), regs);
+    handled = 1;
 }
 
 static int shmac_irqdomain_map(struct irq_domain *d, unsigned int irq,
-		irq_hw_number_t hwirq)
+        irq_hw_number_t hwirq)
 {
-  printk("IRQ: Callback irqnr: %d, assigned with:%d\n",(int) hwirq,irq);
-	irq_set_chip_and_handler(irq, &shmac_irq_chip, handle_level_irq);
-	set_irq_flags(irq, IRQF_VALID);
-	return 0;
+    printk("IRQ: Callback irqnr: %d, assigned with:%d\n",(int) hwirq,irq);
+    irq_set_chip_and_handler(irq, &shmac_irq_chip, handle_level_irq);
+    set_irq_flags(irq, IRQF_VALID);
+    return 0;
 }
 
 /* Set up the options given to the irqdomain_add
  * function. .map is requierd.
  */
 static struct irq_domain_ops shmac_irqdomain_ops = {
-	.map = shmac_irqdomain_map,
-	.xlate = irq_domain_xlate_onecell,
+    .map = shmac_irqdomain_map,
+    .xlate = irq_domain_xlate_onecell,
 };
 
-void __init shmac_irq_init(void __iomem *base, const char *name,
-			  int parent_irq, u32 valid, struct device_node *node)
-{
-	int i;
-  int used_irqs = 0;
-
-	/* This will also allocate irq descriptors */
-	shmac_irq_domain = irq_domain_add_linear(node, 32, &shmac_irqdomain_ops, NULL);
-  shmac_irq_domain->hwirq_max = 10; // TODO necessary ?
-
-	/* This will allocate all valid descriptors in the linear case */
-	for (i = 0; i < fls(valid); i++)
-		if (valid & BIT(i)) {
-			irq_create_mapping(shmac_irq_domain, i);
-      used_irqs++;
-		}
-
-	pr_info("SHMAC IRQ chip %d \"%s\" @ %p, %u irqs\n",
-		shmac_irq_id, name, base, used_irqs);
-}
-
-
 int __init shmac_of_irq_init(struct device_node *node,
-			    struct device_node *parent)
+        struct device_node *parent)
 {
-	valid_mask = 0x6;
+    base = of_iomap(node, 0);
+    WARN(!base, "unable to map shmac irq registers\n");
 
-  base = 0xfffe2000; 
-  // WARN(!base, "unable to map shmac irq registers\n");
+    /* Set up IRQ-domain */
+    shmac_irq_domain = irq_domain_add_linear(node, 32, &shmac_irqdomain_ops, NULL);
+    shmac_irq_domain->hwirq_max = 10; 
 
-  /* Set up IRQ-domain */
-  shmac_irq_init(base, node->name, -1, valid_mask, node);
+    pr_info("SHMAC IRQ chip %d \"%s\" @ %p\n",
+            shmac_irq_id, node->name, base);
 
-  /* Enable the interrupts */
-  writel((1<<1), base + IRQ_ENABLE_SET);
+    set_handle_irq(shmac_handle_irq);
 
-  set_handle_irq(shmac_handle_irq);
-
-	return 0;
+    return 0;
 }
 
 IRQCHIP_DECLARE(shmac, "shmac,shmac-intc", shmac_of_irq_init);
