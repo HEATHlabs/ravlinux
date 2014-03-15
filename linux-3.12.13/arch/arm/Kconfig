@@ -850,6 +850,11 @@ config ARCH_SHMAC
        select GENERIC_IRQ_CHIP
        select IRQ_DOMAIN
        select MULTI_IRQ_HANDLER
+       select CLKSRC_SHMAC
+	   select CLKSRC_MMIO
+       select CLKSRC_OF
+       select COMMON_CLK
+       select GENERIC_CLOCKEVENTS
 
 config ARCH_SHARK
 	bool "Shark"

@@ -1,18 +1,18 @@
-#include <linux/init.h>
-#include <linux/interrupt.h>
-#include <linux/clocksource.h>
+#include <linux/bitops.h>
 #include <linux/clockchips.h>
-#include <linux/cpu.h>
-#include <linux/clk.h>
-#include <linux/err.h>
-#include <linux/io.h>
-#include <linux/of.h>
-#include <linux/of_irq.h>
+#include <linux/clocksource.h>
+#include <linux/interrupt.h>
+#include <linux/irqreturn.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/of_address.h>
+#include <linux/of_irq.h>
+#include <linux/of_platform.h>
+#include <linux/slab.h>
+#include <linux/string.h>
 #include <linux/sched_clock.h>
 
-#include <asm/cputype.h>
-
+#include <asm/irq.h>
 #define DEFAULT_TIMER	0
 #define TIMER0_LOAD      0x00
 #define TIMER0_VALUE     0x04
@@ -28,10 +28,13 @@ struct shmac_timer {
 	struct clock_event_device evt;
 	struct irqaction act;
 };
+static void __iomem *system_clock __read_mostly;
 
 static irqreturn_t shmac_time_interrupt(int irq, void *dev_id)
 {
-	struct shmac_timer *timer = dev_id;
+    printk(".");
+	struct shmac_timer *timer;
+    timer = dev_id;
 	void (*event_handler)(struct clock_event_device *);
 	if (readl_relaxed(timer->control) & timer->match_mask) {
 		writel_relaxed(timer->match_mask, timer->control);
@@ -52,6 +55,7 @@ static void __init shmac_timer_init(struct device_node *node)
 	int irq;
 	struct shmac_timer *timer;
 
+    printk("!!!!!!!!!!!!!!!!! SHMAC TIMER INIT !!!!!!!!!!!!!!!!!!!!\n");
 	base = of_iomap(node, 0);
 	if (!base)
 		panic("Can't remap registers");
@@ -96,6 +100,6 @@ static void __init shmac_timer_init(struct device_node *node)
 
 	pr_info("shmac: system timer (irq = %d)\n", irq);
 }
-CLOCKSOURCE_OF_DECLARE(bcm2835, "arm,shmac-system-timer",
+CLOCKSOURCE_OF_DECLARE(shmac, "shmac,shmac-timer",
 			shmac_timer_init);
 

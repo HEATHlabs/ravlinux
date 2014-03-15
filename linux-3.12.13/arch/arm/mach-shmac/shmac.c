@@ -38,7 +38,6 @@ static char const *shmac_dt_compat[] = {
 DT_MACHINE_START(SHMAC_DT, "SHMAC")
 //	.map_io = shmac._map_io,
 	.init_machine = shmac_init,
-//	.time = shmac_timer,
 	.dt_compat = shmac_dt_compat,
 //	.restart = shmac_restart,
 MACHINE_END
