@@ -2,6 +2,7 @@
 /{
     compatible = "shmac,shmac";
     model = "SHMAC RAV";
+    interrupt-parent = <&intc>;
 
     chosen {
         bootargs = "earlyprintk console=ttySHMC";
@@ -26,14 +27,14 @@
       uart@ffff0000 {
           compatible = "shmac-uart";
           status = "disabled";
-          interrupts = <2>;
+          interrupts = <1>;
       };
 
       timer@fffe1000 {
           compatible = "shmac,shmac-timer";
           reg = <0xfffe1000 0x20>;
           clock-frequency = <60000000>;
-          interrupts = <4>;
+          interrupts = <2>;
       };
 
     };
