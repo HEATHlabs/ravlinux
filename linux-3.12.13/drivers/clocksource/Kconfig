@@ -71,6 +71,12 @@ config CLKSRC_DBX500_PRCMU_SCHED_CLOCK
 	help
 	  Use the always on PRCMU Timer as sched_clock
 
+config CLKSRC_SHMAC
+        bool "Clocksource for SHMAC Rav processor"
+        default ARCH_SHMAC
+        help
+            Support to use the timer of the SHMAC architecture.
+
 config ARM_ARCH_TIMER
 	bool
 	select CLKSRC_OF if OF
