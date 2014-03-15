@@ -92,7 +92,7 @@ static void shmac_uart_set_termios(struct uart_port *port, struct ktermios *new,
 
 static const char * shmac_uart_type(struct uart_port *port)
 {
-	return "shmac-uart";
+	return port->type == PORT_SHMACUART ? "shmac-uart" : NULL;
 }
 
 static void shmac_uart_release_port(struct uart_port *port)
@@ -111,10 +111,14 @@ static int shmac_uart_request_port(struct uart_port *port)
 static void shmac_uart_config_port(struct uart_port *port, int type)
 {
 	/* Perform autoconfiguration */
+	if(type & UART_CONFIG_TYPE && !shmac_uart_request_port(port))
+		port->type = PORT_SHMACUART;
 }
 
 static int shmac_uart_verify_port(struct uart_port *port, struct serial_struct *serinfo )
 {
+	if(serinfo->type != PORT_UNKNOWN && serinfo->type != PORT_SHMACUART)
+		return -EINVAL;
 	return 0;
 }
 
@@ -155,12 +159,19 @@ shmac_uart_console_write(struct console *co, const char *s, unsigned int count)
 	struct shmac_uart_port *shmac_port = shmac_uart_ports[co->index];
 	uart_console_write(&shmac_port->port, s, count, shmac_console_putchar);
 }
+
+static int shmac_uart_console_setup(struct console *co, char *options)
+{
+	return 0;
+}
+
 static struct uart_driver shmac_uart_reg;
 
 static struct console shmac_uart_console = {
 	.name = DEV_NAME,
 	.write = shmac_uart_console_write,
 	.device = uart_console_device,
+	.setup = shmac_uart_console_setup,
 	.flags = CON_PRINTBUFFER,
 	.index = -1,
 	.data = &shmac_uart_reg,
@@ -178,14 +189,38 @@ static struct uart_driver shmac_uart_reg = {
 	.cons = &shmac_uart_console,
 };
 
+static int shmac_uart_probe_dt(struct platform_device *pdev, struct shmac_uart_port *shmac_port)
+{
+	struct device_node *np = pdev->dev.of_node;
+	u32 location;
+	int ret;
+	if(!np)
+		return 1;
+	ret = of_property_read_u32(np, "location", &location);
+	if(!ret){
+		if(location > ARRAY_SIZE(shmac_uart_ports) ){
+			dev_err(&pdev->dev, "invalid location\n");
+			return -EINVAL;
+		}
+		dev_dbg(&pdev->dev, "using location %u\n", location);
+		//shmac_port->pdata.location = location;
+	} else {
+		location = 0;
+		dev_dbg(&pdev->dev, "fall back to location 0\n");
+	}
+	ret = of_alias_get_id(np, "serial");
+	if(ret < 0){
+		dev_err(&pdev->dev, "failed to get alial id: %d\n", ret);
+		return ret;
+	}
+	return 0;
+}
+
 static int shmac_uart_probe(struct platform_device *pdev)
 {
-
 	struct shmac_uart_port *shmac_port;
-	//struct vendor_data *vendor = id->data;
-	//void __iomem *base;
 	struct resource *res;
-	int ret;
+	int ret, line;
 
 	shmac_port = devm_kzalloc(&pdev->dev, sizeof(struct shmac_uart_port),
 			   GFP_KERNEL);
@@ -195,29 +230,49 @@ static int shmac_uart_probe(struct platform_device *pdev)
 	}
 	res = platform_get_resource(pdev, IORESOURCE_MEM,0);
 	if(res == NULL){
-		ret = -ENODEV;
 		dev_dbg(&pdev->dev, "failed to get base address\n");
 		kfree(shmac_port);
-		return ret;
+		return -ENODEV;
 	}
 	
 	ret = platform_get_irq(pdev,1);
 	if(ret <= 0){
-		ret = -ENODEV;
 		dev_dbg(&pdev->dev, "failed to get rx irq\n");
 		kfree(shmac_port);
 		return ret;
 	}
 	shmac_port->port.irq = ret;
 
-	/*i = pl011_probe_dt_alias(i, &dev->dev);
+	shmac_port->port.dev = &pdev->dev;
+	shmac_port->port.mapbase = res->start;
+	shmac_port->port.type = PORT_SHMACUART;
+	shmac_port->port.iotype = UPIO_MEM32;
+	shmac_port->port.fifosize = 2;
+	shmac_port->port.ops = &shmac_uart_port_ops;
+	shmac_port->port.flags = UPF_BOOT_AUTOCONF;
 
-	base = devm_ioremap(&dev->dev, dev->res.start,
-			    resource_size(&dev->res));
-	if (!base) {
-		ret = -ENOMEM;
-		return
-		}*/
+	ret = shmac_uart_probe_dt(pdev, shmac_port);
+	if(ret > 0){
+		/* Something wrong with device tree */
+		return ret;
+	}
+
+	line = shmac_port->port.line;
+	if(line >= 0 && line < ARRAY_SIZE(shmac_uart_ports))
+		shmac_uart_ports[line] = shmac_port;
+
+	ret = uart_add_one_port(&shmac_uart_reg, &shmac_port->port);
+	if(ret){
+		dev_dbg(&pdev->dev, "failed to add port: %d\n",ret);
+		if(line >= 0 && line < ARRAY_SIZE(shmac_uart_ports))
+			shmac_uart_ports[line] = NULL;
+
+		kfree(shmac_port);
+		return ret;
+	} 
+	
+	platform_set_drvdata(pdev, shmac_port);
+
 	return 0;
 }
 

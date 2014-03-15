@@ -238,4 +238,7 @@
 /* Tilera TILE-Gx UART */
 #define PORT_TILEGX	106
 
+/* SHMAC UART*/
+#define PORT_SHMACUART 107
+
 #endif /* _UAPILINUX_SERIAL_CORE_H */
