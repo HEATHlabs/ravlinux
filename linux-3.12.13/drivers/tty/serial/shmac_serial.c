@@ -30,6 +30,19 @@ struct shmac_uart_port {
 	struct uart_port port;
 };
 
+
+static void shmac_uart_write32(struct shmac_uart_port *shmac_port,
+		u32 value, unsigned offset)
+{
+	writel_relaxed(value, shmac_port->port.membase + offset);
+}
+
+static u32 shmac_uart_read32(struct efm32_uart_port *shmac_port,
+		unsigned offset)
+{
+	return readl_relaxed(shmac_port->port.membase + offset);
+}
+
 /* See Documentation/serial/driver for implementation details */
 
 static unsigned int shmac_uart_tx_empty(struct uart_port *port)
@@ -147,10 +160,14 @@ static struct shmac_uart_port *shmac_uart_ports[1];
 static void shmac_console_putchar(struct uart_port *port, int ch)
 {
 	struct shmac_uart_port *usp = (struct shmac_uart_port *)port;
+        u32 status;
 
-	while (readw(usp->port.membase + UARTn_STATUS) & UARTn_STATUS_TXBUSY)
-		;//barrier();
-	writew(ch, usp->port.membase + UARTn_TXDATA);
+	while (true){
+                status = shmac_uart_read32(usp->port.membase + UARTn_STATUS);
+                if(status & UARTn_STATUS_TXBUSY)
+                        break;
+        }
+	shmac_uart_write32(ch, usp->port.membase + UARTn_TXDATA);
 }
 
 static void
@@ -221,7 +238,7 @@ static int shmac_uart_probe(struct platform_device *pdev)
 	struct shmac_uart_port *shmac_port;
 	struct resource *res;
 	int ret, line;
-
+        
 	shmac_port = devm_kzalloc(&pdev->dev, sizeof(struct shmac_uart_port),
 			   GFP_KERNEL);
 	if (shmac_port == NULL) {
@@ -314,8 +331,8 @@ static struct platform_driver shmac_uart_driver = {
 static int __init shmac_serial_init(void)
 {
 	int ret;
-	while(true);
-	printk("shmac serial_console init");
+	printk("\nSHMAC SERIAL_CONSOLE init\n");
+        while(true);
 	ret = uart_register_driver(&shmac_uart_reg);
 	if (ret)
 		return ret;
