@@ -1,16 +1,12 @@
-
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
-
-#include <asm/exception.h>
 #include <asm/mach/irq.h>
 #include <asm/irq.h>
-
+#include <asm/exception.h>
 #include "irqchip.h"
-
 #include <linux/bitops.h>
 #include <linux/irqchip/versatile-fpga.h>
 #include <linux/irqdomain.h>
@@ -18,65 +14,32 @@
 
 #include <asm/setup.h>
 
-#define TILE_BASE           0xFFFE0000
-#define INT_CTRL0_BASE      ((u32*)TILE_BASE+0x2000)
-#define SYS_BASE            0xFFFF0000
-#define SYS_IN_DATA         ((volatile u32*)(SYS_BASE+0x10))
+/* The base of the IRQ-device */
+static void __iomem *base;
 
+/* IRQ-device offsets */
 #define IRQ_STATUS		    0x00
 #define IRQ_RAW_STATUS		0x04
 #define IRQ_ENABLE_SET		0x08
 #define IRQ_ENABLE_CLEAR	0x0c
-#define INT_SOFT_SET		  0x10
-#define INT_SOFT_CLEAR		0x14
-#define FIQ_STATUS		    0x20
-#define FIQ_RAW_STATUS		0x24
-#define FIQ_ENABLE		    0x28
-#define FIQ_ENABLE_SET		0x28
-#define FIQ_ENABLE_CLEAR	0x2C
-#define IC0_IRQ_STATUS      ((volatile u32*)(INT_CTRL0_BASE+0x00))
-#define IC0_IRQ_RAWSTAT     ((volatile u32*)(INT_CTRL0_BASE+0x04))
-#define IC0_IRQ_ENABLESET   ((volatile u32*)(INT_CTRL0_BASE+0x08)) 
-#define IC0_IRQ_ENABLECLR   ((volatile u32*)(INT_CTRL0_BASE+0x0c)) 
-#define IC0_INT_SOFTSET     ((volatile u32*)(INT_CTRL0_BASE+0x10))
-#define IC0_INT_SOFTCLEAR   ((volatile u32*)(INT_CTRL0_BASE+0x14))
-#define IC0_FIRQ_STATUS     ((volatile u32*)(INT_CTRL0_BASE+0x20))  
-#define IC0_FIRQ_RAWSTAT    ((volatile u32*)(INT_CTRL0_BASE+0x24))  
-#define IC0_FIRQ_ENABLESET  ((volatile u32*)(INT_CTRL0_BASE+0x28))  
-#define IC0_FIRQ_ENABLECLR  ((volatile u32*)(INT_CTRL0_BASE+0x2c)) 
 
-#define TIMER0_BASE     (TILE_BASE+0x1000)
-#define TIMER0_LOAD      ((volatile u32*)(TIMER0_BASE+0x00))
-#define TIMER0_VALUE     ((volatile u32*)(TIMER0_BASE+0x04))
-#define TIMER0_CTRL      ((volatile u32*)(TIMER0_BASE+0x08))
-#define TIMER0_CLR       ((volatile u32*)(TIMER0_BASE+0x0c))
-#define TIMER_CTRL_ENABLE (1<<7)
-#define TIMER_CTRL_PERIODIC (1<<6)
-#define TIMER_CTRL_SCALE_256 0
-#define TIMER_CTRL_SCALE_16 4
-#define TIMER_CTRL_SCALE_1 8
-#define INT_MASK_SOFT 1
-#define INT_MASK_HOST 2
-#define INT_MASK_TIMER0 4
-#define INT_MASK_TIMER1 8
-#define INT_MASK_TIMER2 16
-
-static void __iomem *base;
+/* IRQ-domain used for mapping between virtual IRQns 
+ * and HW-IRQns */
 static struct irq_domain *shmac_irq_domain;
-/* We only use one of the IRQ-devices on SHMAC */
-static int shmac_irq_id;
 
-static void shmac_irq_ack(struct irq_data *irqd)
-{
-    printk("SHMACK (empty)\n");
-}
+/* The SHMAC IRQ does not use pending interrupts, so ack is not needed. */
+static void shmac_irq_ack(struct irq_data *irqd){ }
 
+/* Mask (turn off) an interrupt */
 static void shmac_irq_mask(struct irq_data *d)
 {
+    /* Find the HW-IRQ-nr by looking at the domain */
     unsigned int irq = irqd_to_hwirq(d);
+
     unsigned int pos = ffs(irq)-1;
-    printk("SHMIRQ: MASK nr: %d, at pos: %d\n", irq,pos); 
-    writel((1 << pos),IC0_IRQ_ENABLECLR);
+
+    /* Write to IRQ control register to mask interrupt */
+    writel((1 << pos),base + IRQ_ENABLE_CLEAR);
 }
 
 
@@ -84,7 +47,6 @@ static void shmac_irq_unmask(struct irq_data *d)
 {
     unsigned int irq = irqd_to_hwirq(d);
     unsigned int pos = ffs(irq);
-    printk("SHMIRQ: UNMASK nr: 0x%x\n", irq); 
     writel((1 << pos), base + IRQ_ENABLE_SET);
 }
 
@@ -98,17 +60,22 @@ static struct irq_chip shmac_irq_chip= {
 /* Handle SHMAC irq */
 static asmlinkage void __exception_irq_entry shmac_handle_irq(struct pt_regs *regs)
 {
-    int handled = 0;
     int irq;
-
     u32 status;
+
+    /* Read the status register in order to identify the interrupt source */
     status  = readl(base + IRQ_STATUS);
+
+    /* Use ffs (find first non-zero bit) in order to find the hardware irq-number */
     irq = ffs(status) - 1;
-    printk("Softirq: %d\n", irq_find_mapping(shmac_irq_domain, irq));
+
+    /* Call the appropriate handler by looking at the irq-domain */
     handle_IRQ(irq_find_mapping(shmac_irq_domain, irq), regs);
-    handled = 1;
 }
 
+/* Callback used when a new interrupt source is registered.
+ * This function will allocade a virtual IRQ-number and register
+ * it within the irqdomain */
 static int shmac_irqdomain_map(struct irq_domain *d, unsigned int irq,
         irq_hw_number_t hwirq)
 {
@@ -126,23 +93,28 @@ static struct irq_domain_ops shmac_irqdomain_ops = {
     .xlate = irq_domain_xlate_onecell,
 };
 
+/* Initialize SHMAC irq controller. Is only called once */
 int __init shmac_of_irq_init(struct device_node *node,
         struct device_node *parent)
 {
+    /* Extract base address from 'regs' property in DT tree*/
     base = of_iomap(node, 0);
     WARN(!base, "unable to map shmac irq registers\n");
 
-    /* Set up IRQ-domain */
+    /* Set up IRQ-domain, this will create a 1-1 mapping between virtual 
+     * irq-numbers used by the kernel, and the physical irq-numbers */
     shmac_irq_domain = irq_domain_add_linear(node, 32, &shmac_irqdomain_ops, NULL);
     shmac_irq_domain->hwirq_max = 10; 
 
-    pr_info("SHMAC IRQ chip %d \"%s\" @ %p\n",
-            shmac_irq_id, node->name, base);
+    pr_info("SHMAC IRQ chip \"%s\" @ %p\n",
+            node->name, base);
 
+    /* Set interrupt handler */
     set_handle_irq(shmac_handle_irq);
 
     return 0;
 }
 
+/* Declare the IRQCHIP so that it can be mapped to the SHMAC DT (arch/arm/boot/dts/shmac.dtsi) */
 IRQCHIP_DECLARE(shmac, "shmac,shmac-intc", shmac_of_irq_init);
 
