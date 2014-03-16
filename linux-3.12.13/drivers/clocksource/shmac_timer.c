@@ -61,17 +61,17 @@ static int shmac_time_set_next_event(unsigned long event, struct
                                      clock_event_device *evt_dev){
         struct shmac_timer *timer = container_of(evt_dev,
 		struct shmac_timer, evt);
-        writel_relaxed(60000, timer->value);
-        writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_PERIODIC | TIMER_CTRL_SCALE_1, timer->control);
+        writel_relaxed(60000000, timer->value);
+        writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1, timer->control);
         return 0;
 }
 
 static irqreturn_t shmac_time_interrupt(int irq, void *dev_id)
 {
-    printk(".\n");
-	struct shmac_timer *timer;
-    timer = dev_id;
-	void (*event_handler)(struct clock_event_device *);
+      	struct shmac_timer *timer;
+        void (*event_handler)(struct clock_event_device *);
+        timer = dev_id;        
+        printk(".");
 	if (readl_relaxed(timer->control) & timer->match_mask) {
 		writel_relaxed(timer->match_mask, timer->control);
 
@@ -91,33 +91,32 @@ static void __init shmac_timer_init(struct device_node *node)
 	int irq;
 	struct shmac_timer *timer;
 
-        printk("!!!!!!!!!!!!!!!!! SHMAC TIMER INIT !!!!!!!!!!!!!!!!!!!!\n");
 	base = of_iomap(node, 0);
 	if (!base)
 		panic("Can't remap registers");
 
 	if (of_property_read_u32(node, "clock-frequency", &freq))
 		panic("Can't read clock-frequency");
-        printk("%s: %d\n", __FILE__, __LINE__);
-	system_clock = base + TIMER_VALUE; //REG_COUNTER_LO;
-	//DO setup_sched_clock(bcm2835_sched_read, 32, freq);
-printk("%s: %d\n", __FILE__, __LINE__);
+
+	system_clock = base + TIMER_VALUE; 
+	setup_sched_clock(shmac_sched_read, 32, freq);
+
 	clocksource_mmio_init(base + TIMER_VALUE, node->name,
 		freq, 300, 32, clocksource_mmio_readl_up);
-printk("%s: %d\n", __FILE__, __LINE__);
+
 	irq = irq_of_parse_and_map(node, DEFAULT_TIMER);
 	if (irq <= 0)
 		panic("Can't parse IRQ");
-printk("%s: %d\n", __FILE__, __LINE__);
+
 	timer = kzalloc(sizeof(*timer), GFP_KERNEL);
 	if (!timer)
 		panic("Can't allocate timer struct\n");
-printk("%s: %d\n", __FILE__, __LINE__);
+
 	timer->control  = base + TIMER_CTRL;
         timer->clear    = base + TIMER_CLR;
         timer->load     = base + TIMER_LOAD;
         timer->value    = base + TIMER_VALUE;
-        // TODO need to set evt.event_handler ?
+       
         timer->evt.name = node->name;
 	timer->evt.rating = 300;
 	timer->evt.features = CLOCK_EVT_FEAT_ONESHOT;
@@ -128,12 +127,12 @@ printk("%s: %d\n", __FILE__, __LINE__);
 	timer->act.flags = IRQF_TIMER | IRQF_SHARED;
 	timer->act.dev_id = timer;
 	timer->act.handler = shmac_time_interrupt;
-printk("%s: %d\n", __FILE__, __LINE__);
+
 	if (setup_irq(irq, &timer->act))
 		panic("Can't set up timer IRQ\n");
-printk("%s: %d\n", __FILE__, __LINE__);
+
 	clockevents_config_and_register(&timer->evt, freq, 0xf, 0xffffffff);
-printk("%s: %d\n", __FILE__, __LINE__);
+
 	pr_info("shmac: system timer (irq = %d)\n", irq);
 }
 CLOCKSOURCE_OF_DECLARE(shmac, "shmac,shmac-timer",
