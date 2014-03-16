@@ -11,7 +11,7 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/sched_clock.h>
-
+#include <linux/jiffies.h>
 #include <asm/irq.h>
 #define DEFAULT_TIMER	0
 #define TIMER_LOAD      0x00
@@ -19,11 +19,13 @@
 #define TIMER_CTRL      0x08
 #define TIMER_CLR       0x0c
 
-#define TIMER_CTRL_ENABLE (1<<7)
-#define TIMER_CTRL_PERIODIC (1<<6)
-#define TIMER_CTRL_SCALE_256 0
-#define TIMER_CTRL_SCALE_16 4
-#define TIMER_CTRL_SCALE_1 8
+#define TIMER_CTRL_ENABLE       (1<<7)
+#define TIMER_CTRL_DISABLE      (0<<7)
+#define TIMER_CTRL_PERIODIC     (1<<6)
+#define TIMER_CTRL_SCALE_256    0
+#define TIMER_CTRL_SCALE_16     4
+#define TIMER_CTRL_SCALE_1      8
+#define TIMER_INT_CLEAR         1
 
 
 struct shmac_timer {
@@ -37,32 +39,65 @@ struct shmac_timer {
 };
 static void __iomem *system_clock __read_mostly;
 
+static void shmac_timer_stop(struct shmac_timer* timer)
+{
+        writel_relaxed(TIMER_CTRL_DISABLE, timer->control);
+}
+
+static void shmac_timer_start(struct shmac_timer* timer, bool periodic)
+{
+        writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1
+                | (periodic ? TIMER_CTRL_PERIODIC : 0), timer->control);
+}
+
+static void shmac_timer_clear(struct shmac_timer* timer)
+{
+        writel_relaxed(TIMER_INT_CLEAR, timer->clear);
+}
+
+static void shmac_timer_set_value(struct shmac_timer* timer, unsigned long val)
+{
+        writel_relaxed(val, timer->value);
+}
+
 static u32 notrace shmac_sched_read(void)
 {
 	return readl_relaxed(system_clock);
 }
 
 static void shmac_time_set_mode(enum clock_event_mode mode,
-                                       struct clock_event_device *evt_dev)
+        struct clock_event_device *evt_dev)
 {
-        switch (mode) {
-	case CLOCK_EVT_MODE_ONESHOT:
-	case CLOCK_EVT_MODE_UNUSED:
-	case CLOCK_EVT_MODE_SHUTDOWN:
-	case CLOCK_EVT_MODE_RESUME:
-		break;
-	default:
-		WARN(1, "%s: unhandled event mode %d\n", __func__, mode);
-		break;
-	}
+    struct shmac_timer *timer = container_of(evt_dev, struct shmac_timer, evt);
+    printk("CHANGING MODE: ");
+    switch (mode) {
+        case CLOCK_EVT_MODE_ONESHOT:
+            shmac_timer_stop(timer);
+            shmac_timer_start(timer, false);
+            printk(" ONESHOT\n");
+            break;
+        case CLOCK_EVT_MODE_PERIODIC:
+            shmac_timer_stop(timer);
+            shmac_timer_start(timer, true);
+            printk(" PERIODIC\n");
+            break;
+        case CLOCK_EVT_MODE_UNUSED:
+        case CLOCK_EVT_MODE_SHUTDOWN:
+        case CLOCK_EVT_MODE_RESUME:
+            printk(" else\n");
+            break;
+        default:
+            WARN(1, "%s: unhandled event mode %d\n", __func__, mode);
+            break;
+    }
 }
 
 static int shmac_time_set_next_event(unsigned long event, struct 
                                      clock_event_device *evt_dev){
-        struct shmac_timer *timer = container_of(evt_dev,
-		struct shmac_timer, evt);
-        writel_relaxed(60000000, timer->value);
-        writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1, timer->control);
+        struct shmac_timer *timer = container_of(evt_dev, struct shmac_timer, evt);
+        shmac_timer_clear(timer);
+        shmac_timer_set_value(timer, event);
+        shmac_timer_start(timer, false);
         return 0;
 }
 
@@ -71,7 +106,8 @@ static irqreturn_t shmac_time_interrupt(int irq, void *dev_id)
       	struct shmac_timer *timer;
         void (*event_handler)(struct clock_event_device *);
         timer = dev_id;        
-        printk(".");
+        writel_relaxed(TIMER_INT_CLEAR, timer->clear);
+        //printk("%d\n",jiffies);
 	if (readl_relaxed(timer->control) & timer->match_mask) {
 		writel_relaxed(timer->match_mask, timer->control);
 
@@ -112,21 +148,23 @@ static void __init shmac_timer_init(struct device_node *node)
 	if (!timer)
 		panic("Can't allocate timer struct\n");
 
-	timer->control  = base + TIMER_CTRL;
-        timer->clear    = base + TIMER_CLR;
-        timer->load     = base + TIMER_LOAD;
-        timer->value    = base + TIMER_VALUE;
-       
-        timer->evt.name = node->name;
+    timer->control  = base + TIMER_CTRL;
+    timer->clear    = base + TIMER_CLR;
+    timer->load     = base + TIMER_LOAD;
+    timer->value    = base + TIMER_VALUE;
+
+    timer->evt.name = node->name;
 	timer->evt.rating = 300;
-	timer->evt.features = CLOCK_EVT_FEAT_ONESHOT;
+	timer->evt.features = CLOCK_EVT_FEAT_ONESHOT | CLOCK_EVT_FEAT_PERIODIC;
 	timer->evt.set_mode = shmac_time_set_mode;
 	timer->evt.set_next_event = shmac_time_set_next_event;
-	timer->evt.cpumask = cpumask_of(0);
+	timer->evt.cpumask = 0;//cpumask_of(0);
 	timer->act.name = node->name;
-	timer->act.flags = IRQF_TIMER | IRQF_SHARED;
+	timer->act.flags = IRQF_TIMER | IRQF_SHARED | IRQF_IRQPOLL;
 	timer->act.dev_id = timer;
 	timer->act.handler = shmac_time_interrupt;
+    
+     writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1, timer->control);
 
 	if (setup_irq(irq, &timer->act))
 		panic("Can't set up timer IRQ\n");
