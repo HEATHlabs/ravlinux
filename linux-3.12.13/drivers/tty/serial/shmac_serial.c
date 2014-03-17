@@ -30,6 +30,7 @@ struct shmac_uart_port {
 	struct uart_port port;
 };
 
+#define to_shmac_port(_port) container_of(_port, struct shmac_uart_port, port)
 
 static void shmac_uart_write32(struct shmac_uart_port *shmac_port,
 		u32 value, unsigned offset)
@@ -37,7 +38,7 @@ static void shmac_uart_write32(struct shmac_uart_port *shmac_port,
 	writel_relaxed(value, shmac_port->port.membase + offset);
 }
 
-static u32 shmac_uart_read32(struct efm32_uart_port *shmac_port,
+static u32 shmac_uart_read32(struct shmac_uart_port *shmac_port,
 		unsigned offset)
 {
 	return readl_relaxed(shmac_port->port.membase + offset);
@@ -159,19 +160,16 @@ static struct shmac_uart_port *shmac_uart_ports[1];
 #ifdef CONFIG_SERIAL_SHMAC_UART_CONSOLE
 static void shmac_console_putchar(struct uart_port *port, int ch)
 {
-	struct shmac_uart_port *usp = (struct shmac_uart_port *)port;
-        u32 status;
+        struct shmac_uart_port *usp = to_shmac_port(port);
+        u32 status = 0;
 
-	while (true){
-                status = shmac_uart_read32(usp->port.membase + UARTn_STATUS);
-                if(status & UARTn_STATUS_TXBUSY)
-                        break;
+        while (!(status & UARTn_STATUS_TXBUSY)){
+                status = shmac_uart_read32(usp, UARTn_STATUS);
         }
-	shmac_uart_write32(ch, usp->port.membase + UARTn_TXDATA);
+	shmac_uart_write32(ch, usp,  UARTn_TXDATA);
 }
 
-static void
-shmac_uart_console_write(struct console *co, const char *s, unsigned int count)
+static void shmac_uart_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct shmac_uart_port *shmac_port = shmac_uart_ports[co->index];
 	uart_console_write(&shmac_port->port, s, count, shmac_console_putchar);
