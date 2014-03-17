@@ -330,7 +330,6 @@ static int __init shmac_serial_init(void)
 {
 	int ret;
 	printk("\nSHMAC SERIAL_CONSOLE init\n");
-        while(true);
 	ret = uart_register_driver(&shmac_uart_reg);
 	if (ret)
 		return ret;
