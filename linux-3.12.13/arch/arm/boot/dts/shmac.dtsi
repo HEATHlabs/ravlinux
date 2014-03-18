@@ -5,7 +5,9 @@
     interrupt-parent = <&intc>;
 
     chosen {
-        bootargs = "earlyprintk console=ttySHMC";
+        bootargs = "earlyprintk console=ttySHMC keep_bootcon 
+        root=/dev/ram0 rw ramdisk=8192 initrd=0x01000000,200K init=/initrc";
+        
     };
 
     soc {
@@ -14,7 +16,7 @@
         #address-cells = <1>;
         #size-cells = <1>;
         ranges;
-        
+
         intc: interrupt-controller@fffe2000 {
           compatible = "shmac,shmac-intc";
           reg = <0xfffe2000 0x20>;
