@@ -14,9 +14,9 @@
 
 inline void __putChar(char c) {
   // wait
-  while((*SYS_INT_STATUS) & 2); 
+  while((*DEBUG_SYS_INT_STATUS) & 2); 
   // write word
-  *SYS_OUT_DATA = c;
+  *DEBUG_SYS_OUT_DATA = c;
 }
 
 inline void outbyte(char** dst, char c)
