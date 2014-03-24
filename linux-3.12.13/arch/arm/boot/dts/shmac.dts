@@ -10,11 +10,11 @@
                reg = <0x0 0x02000000>; // 32M at 0x0
 	};
 
+        soc {
+                uart0: uart@ffff0000 {
+                        status = "ok";
+                };
+        };
 
-	soc {
-		uart@0xffff0000 {
-			       status="okey";
-		};
-	};
 };
 

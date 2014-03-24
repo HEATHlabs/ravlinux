@@ -1,43 +1,45 @@
 /include/ "skeleton.dtsi"
 /{
-    compatible = "shmac,shmac";
-    model = "SHMAC RAV";
-    interrupt-parent = <&intc>;
+        compatible = "shmac,shmac";
+        model = "SHMAC RAV";
+        interrupt-parent = <&intc>;
 
-    chosen {
-        bootargs = "earlyprintk console=ttySHMC keep_bootcon 
-        root=/dev/ram0 rw ramdisk=8192 initrd=0x01000000,200K init=/initrc";
-        
-    };
+        aliases {
+                serial0 = &uart0;
+        };
 
-    soc {
+        chosen {
+                bootargs = "earlyprintk console=ttyshmc";
 
-        compatible = "simple-bus";
-        #address-cells = <1>;
-        #size-cells = <1>;
-        ranges;
+        };
 
-        intc: interrupt-controller@fffe2000 {
-          compatible = "shmac,shmac-intc";
-          reg = <0xfffe2000 0x20>;
-          interrupt-controller;
-            #interrupt-cells = <1>;
-          clear-mask = <0xffffffff>;
-          valid-mask = <0x00000006>;
-      };
+        soc {
+                compatible = "simple-bus";
+                #address-cells = <1>;
+                #size-cells = <1>;
+                ranges;
 
-      uart@ffff0000 {
-          compatible = "shmac-uart";
-          status = "disabled";
-          interrupts = <1>;
-      };
+                intc: interrupt-controller@fffe2000 {
+                        compatible = "shmac,shmac-intc";
+                        reg = <0xfffe2000 0x20>;
+                        interrupt-controller;
+                        #interrupt-cells = <1>;
+                        clear-mask = <0xffffffff>;
+                        valid-mask = <0x00000006>;
+                };
 
-      timer@fffe1000 {
-          compatible = "shmac,shmac-timer";
-          reg = <0xfffe1000 0x20>;
-          clock-frequency = <60000000>;
-          interrupts = <2>;
-      };
+                uart0: uart@ffff0000 {
+                        compatible = "shmac,shmac-uart";
+                        reg = <0xffff0000 0x24>;
+                        interrupts = <1>;
+                        status = "ok";
+                };
 
-    };
+                timer@fffe1000 {
+                        compatible = "shmac,shmac-timer";
+                        reg = <0xfffe1000 0x20>;
+                        clock-frequency = <60000000>;
+                        interrupts = <2>;
+                };
+        };
 };
