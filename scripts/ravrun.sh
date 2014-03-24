@@ -33,7 +33,7 @@ then
       SIZE=$2
     fi
 
-  echo "Downloading memory dump with size (bytes) $SIZE" 
+  echo "Downloading memory dump with size (bytes) $SIZE"
 
   # Dump the memory, and save it to a file
   ssh arv3@$SB "cd $DIR;./ravdump.sh $SIZE $DUMPFILE"
@@ -69,9 +69,9 @@ then
     sudo mknod $RL/ramdiskmnt/dev/console c 5 1
 
     # Add all of the userland applications to the ramdisk
-    for dir in $(find ../userland/ -maxdepth 1 -mindepth 1 -type d | xargs -n1 basename | grep -v include)
+    for dir in $(find $RL/userland/ -maxdepth 1 -mindepth 1 -type d | xargs -n1 basename | grep -v include)
     do
-        # Temp variables 
+        # Temp variables
         dir=${dir%*/}
         app=${dir##*/}
         appdir=$RL/userland/$app
