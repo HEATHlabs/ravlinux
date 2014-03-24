@@ -15,12 +15,10 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 
-#include <mach/shmac.h>
+#include <mach/debug-shmac.h>
 
 #define DRIVER_NAME "shmac-uart"
 #define DEV_NAME "ttyshmc"
-
-#define UART_NR 13
 
 #define UARTn_STATUS 0x20
 #define UARTn_STATUS_TXBUSY 0x2
@@ -32,8 +30,7 @@ struct shmac_uart_port {
 
 #define to_shmac_port(_port) container_of(_port, struct shmac_uart_port, port)
 
-static void shmac_uart_write32(struct shmac_uart_port *shmac_port,
-		u32 value, unsigned offset)
+static void shmac_uart_write32(u32 value, struct shmac_uart_port *shmac_port, unsigned offset)
 {
 	writel_relaxed(value, shmac_port->port.membase + offset);
 }
@@ -87,15 +84,42 @@ static void shmac_uart_break_ctl(struct uart_port *port, int ctl)
 	/* Control the transission of a break signal */
 }
 
+#define SYS_IN_DATA (volatile u32*)0xffff0010
+static irqreturn_t shmac_uart_rxirq(int irq, void *data){
+        struct shmac_uart_port *shmac_port = data;
+        struct uart_port *port = &shmac_port->port;
+        struct tty_port *tport = &port->state->port;
+        char rxchar;
+
+        spin_lock(&port->lock);
+        
+        rxchar = *SYS_IN_DATA;
+        printk("%c", rxchar);
+        port->icount.rx++;
+        tty_insert_flip_char(tport, rxchar, 0);
+
+        spin_unlock(&port->lock);
+        tty_flip_buffer_push(tport);
+        return IRQ_HANDLED;
+}
+
 static int shmac_uart_startup(struct uart_port *port)
 {
-	// TODO
+	struct shmac_uart_port *shmac_port = to_shmac_port(port);
+        int ret;
+        
+        ret = request_irq(port->irq, shmac_uart_rxirq, 0, DRIVER_NAME, shmac_port);
+        if(ret){
+                pr_err("failed to register rxirq\n");
+                return ret;
+        }
 	return 0;
 }
 
 static void shmac_uart_shutdown(struct uart_port *port)
 {
-	// TODO
+       struct shmac_uart_port *shmac_port = to_shmac_port(port);
+       free_irq(port->irq, shmac_port);
 }
 
 static void shmac_uart_set_termios(struct uart_port *port, struct ktermios *new, struct ktermios *old)
@@ -111,12 +135,18 @@ static const char * shmac_uart_type(struct uart_port *port)
 
 static void shmac_uart_release_port(struct uart_port *port)
 {
-	/* Release memory and io requested by port*/
-	// TODO
+        iounmap(port->membase);
 }
 
 static int shmac_uart_request_port(struct uart_port *port)
 {
+        struct shmac_uart_port *shmac_port = to_shmac_port(port);
+	
+        port->membase = ioremap(port->mapbase, 60);
+	if (!shmac_port->port.membase) {
+                pr_warn("failed to map memory\n");
+		return -ENOMEM;
+	}
 	/* Request memory and io for port, return EBUSY on failure*/
 	// TODO
 	return 0;
@@ -156,28 +186,56 @@ static struct uart_ops shmac_uart_port_ops = {
 };
 
 static struct shmac_uart_port *shmac_uart_ports[1];
-
+#define SYS_INT_STATUS (volatile u32*)0xffff0020
+#define SYS_OUT_DATA (volatile u32*) 0xffff0000
 #ifdef CONFIG_SERIAL_SHMAC_UART_CONSOLE
 static void shmac_console_putchar(struct uart_port *port, int ch)
 {
-        struct shmac_uart_port *usp = to_shmac_port(port);
-        u32 status = 0;
-
+        //struct shmac_uart_port *usp = to_shmac_port(port);
+        //u32 status = 0;
+        while((*SYS_INT_STATUS) & 2); 
+        // write word
+        *SYS_OUT_DATA = ch;
+        /*
         while (!(status & UARTn_STATUS_TXBUSY)){
                 status = shmac_uart_read32(usp, UARTn_STATUS);
         }
 	shmac_uart_write32(ch, usp,  UARTn_TXDATA);
+        */
 }
 
 static void shmac_uart_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct shmac_uart_port *shmac_port = shmac_uart_ports[co->index];
-	uart_console_write(&shmac_port->port, s, count, shmac_console_putchar);
+        uart_console_write(&shmac_port->port, s, count, shmac_console_putchar);
 }
 
 static int shmac_uart_console_setup(struct console *co, char *options)
 {
-	return 0;
+        struct shmac_uart_port *shmac_port;
+	int baud = 115200;
+	int bits = 8;
+	int parity = 'n';
+	int flow = 'n';
+
+        if (co->index < 0 || co->index >= ARRAY_SIZE(shmac_uart_ports)) {
+		unsigned i;
+		for (i = 0; i < ARRAY_SIZE(shmac_uart_ports); ++i) {
+			if (shmac_uart_ports[i]) {
+				pr_warn("shmac-console: fall back to console index %u (from %hhi)\n",
+						i, co->index);
+				co->index = i;
+				break;
+			}
+		}
+	}
+        
+        shmac_port = shmac_uart_ports[co->index];
+        if(!shmac_port){
+                pr_warn("shmac-console: No port at %d\n", co->index);
+                return -ENODEV;
+        }
+        return uart_set_options(&shmac_port->port, co, baud, parity, bits, flow);
 }
 
 static struct uart_driver shmac_uart_reg;
@@ -195,7 +253,6 @@ static struct console shmac_uart_console = {
 #else
 #define shmac_uart_console (*(struct console *)NULL)
 #endif /*ifdef CONFIG_SERIAL_SHMAC_UART_CONSOLE */
-
 static struct uart_driver shmac_uart_reg = {
 	.owner = THIS_MODULE,
 	.driver_name = DRIVER_NAME,
@@ -225,7 +282,7 @@ static int shmac_uart_probe_dt(struct platform_device *pdev, struct shmac_uart_p
 	}
 	ret = of_alias_get_id(np, "serial");
 	if(ret < 0){
-		dev_err(&pdev->dev, "failed to get alial id: %d\n", ret);
+		dev_err(&pdev->dev, "failed to get alias id: %d\n", ret);
 		return ret;
 	}
 	return 0;
@@ -250,7 +307,7 @@ static int shmac_uart_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	
-	ret = platform_get_irq(pdev,1);
+	ret = platform_get_irq(pdev,0);
 	if(ret <= 0){
 		dev_dbg(&pdev->dev, "failed to get rx irq\n");
 		kfree(shmac_port);
@@ -285,15 +342,14 @@ static int shmac_uart_probe(struct platform_device *pdev)
 		kfree(shmac_port);
 		return ret;
 	} 
-	
-	platform_set_drvdata(pdev, shmac_port);
 
+	platform_set_drvdata(pdev, shmac_port);
 	return 0;
 }
 
 static int shmac_uart_remove(struct platform_device *pdev)
 {
-	struct shmac_uart_port *shmac_port = platform_get_drvdata(pdev);
+        struct shmac_uart_port *shmac_port = platform_get_drvdata(pdev);
 	unsigned int line = shmac_port->port.line;
 
 	uart_remove_one_port(&shmac_uart_reg, &shmac_port->port);
@@ -329,15 +385,15 @@ static struct platform_driver shmac_uart_driver = {
 static int __init shmac_serial_init(void)
 {
 	int ret;
-	printk("\nSHMAC SERIAL_CONSOLE init\n");
 	ret = uart_register_driver(&shmac_uart_reg);
-	if (ret)
+	if (ret){
 		return ret;
-
+        }
 	ret = platform_driver_register(&shmac_uart_driver);
-	if (ret)
+	if (ret){
 		uart_unregister_driver(&shmac_uart_reg);
-
+        }
+        pr_info("SHMAC UART DRIVER\n");
 	return ret;
 }
 
