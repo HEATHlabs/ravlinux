@@ -15,8 +15,6 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 
-#include <mach/debug-shmac.h>
-
 #define DRIVER_NAME "shmac-uart"
 #define DEV_NAME "ttyshmc"
 
@@ -74,7 +72,6 @@ static void shmac_uart_break_ctl(struct uart_port *port, int ctl)
 	/* Control the transission of a break signal */
 }
 
-#define SYS_IN_DATA (volatile u32*)0xffff0010
 static irqreturn_t shmac_uart_rxirq(int irq, void *data){
         struct shmac_uart_port *shmac_port = data;
         struct uart_port *port = &shmac_port->port;
