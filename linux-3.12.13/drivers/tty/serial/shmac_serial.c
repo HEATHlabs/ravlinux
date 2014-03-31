@@ -22,6 +22,7 @@
 
 #define UARTn_STATUS 0x20
 #define UARTn_STATUS_TXBUSY 0x2
+#define UARTn_RXDATA 0x10
 #define UARTn_TXDATA 0x0
 
 struct shmac_uart_port {
@@ -29,17 +30,6 @@ struct shmac_uart_port {
 };
 
 #define to_shmac_port(_port) container_of(_port, struct shmac_uart_port, port)
-
-static void shmac_uart_write32(u32 value, struct shmac_uart_port *shmac_port, unsigned offset)
-{
-	writel_relaxed(value, shmac_port->port.membase + offset);
-}
-
-static u32 shmac_uart_read32(struct shmac_uart_port *shmac_port,
-		unsigned offset)
-{
-	return readl_relaxed(shmac_port->port.membase + offset);
-}
 
 /* See Documentation/serial/driver for implementation details */
 
@@ -93,8 +83,8 @@ static irqreturn_t shmac_uart_rxirq(int irq, void *data){
 
         spin_lock(&port->lock);
         
-        rxchar = *SYS_IN_DATA;
-        printk("%c", rxchar);
+        rxchar = readl_relaxed(port->membase + UARTn_RXDATA);
+
         port->icount.rx++;
         tty_insert_flip_char(tport, rxchar, 0);
 
@@ -191,17 +181,8 @@ static struct shmac_uart_port *shmac_uart_ports[1];
 #ifdef CONFIG_SERIAL_SHMAC_UART_CONSOLE
 static void shmac_console_putchar(struct uart_port *port, int ch)
 {
-        //struct shmac_uart_port *usp = to_shmac_port(port);
-        //u32 status = 0;
-        while((*SYS_INT_STATUS) & 2); 
-        // write word
-        *SYS_OUT_DATA = ch;
-        /*
-        while (!(status & UARTn_STATUS_TXBUSY)){
-                status = shmac_uart_read32(usp, UARTn_STATUS);
-        }
-	shmac_uart_write32(ch, usp,  UARTn_TXDATA);
-        */
+        while(readl_relaxed(port->membase + UARTn_STATUS) & UARTn_STATUS_TXBUSY);
+        writel_relaxed(ch, port->membase + UARTn_TXDATA);
 }
 
 static void shmac_uart_console_write(struct console *co, const char *s, unsigned int count)
