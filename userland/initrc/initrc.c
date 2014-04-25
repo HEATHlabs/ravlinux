@@ -1,25 +1,15 @@
 #include <stdint.h>
+#include <stdio.h>
 
-#define SYS_OUT_DATA    (uint32_t*)0xFFFF0000  
-#define SYS_INT_STATUS  (uint32_t*)0xFFFF0020
-
-static inline void putChar(uint8_t c) {
-  // wait
-  while(*(SYS_INT_STATUS) & 2)
-  // write word
-  *SYS_OUT_DATA = c;
-}
-
-static void putString(char *s) {
-  while(*s != 0) {
-    if(*s == '\n') putChar('\r');
-    putChar(*s);
-    s++;
-  }
+int fib(int n){
+        if(n == 1 || n == 0) return n;
+        else return fib(n-1) + fib(n-2);
 }
 
 int main(){
-    int i = 0;
-    while(i < 10)
-        putString("USERLAND SAYS HELLO TEN TIMES\n");
+        printf("Hallo, ich bin ein programmes\n");
+        int i;
+        for(i = 1; i<100; i++)
+                printf("[%d] fib(%d) = %d\n",getpid(), i, fib(i));
+        return 0;
 }

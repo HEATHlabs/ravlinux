@@ -14,9 +14,12 @@
 #include <linux/clk.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <mach/debug-shmac.h>
 
 #define DRIVER_NAME "shmac-uart"
 #define DEV_NAME "ttyshmc"
+#define SERIAL_SHMAC_MAJOR 204
+#define SERIAL_SHMAC_MINOR 214
 
 #define UARTn_STATUS 0x20
 #define UARTn_STATUS_TXBUSY 0x2
@@ -47,20 +50,55 @@ static unsigned int shmac_uart_get_mctrl(struct uart_port *port)
 	return TIOCM_CAR | TIOCM_CTS | TIOCM_DSR;
 }
 
+
+
 static void shmac_uart_stop_tx(struct uart_port *port)
 {
 	/* Stop transmitting characters */
-}
-
-static void shmac_uart_start_tx(struct uart_port *port)
-{
-	/* Start transmitting characters */
 }
 
 static void shmac_uart_stop_rx(struct uart_port *port)
 {
 	/* Stop receiving characters, the port is in the process of being closed */
 }
+
+static void shmac_console_putchar(struct uart_port *port, int ch);
+
+static void shmac_tx_chars(struct uart_port *port)
+{
+	struct circ_buf *xmit = &port->state->xmit;
+
+        if (port->x_char) {
+                /* send port->x_char out the port here */
+                shmac_console_putchar(port, port->x_char);
+                port->icount.tx++;
+                port->x_char = 0;
+                return;
+        }
+ 
+	if (uart_circ_empty(xmit) || uart_tx_stopped(port)) {
+		shmac_uart_stop_tx(port);
+		return;
+	}
+        
+        while (1)
+                if(!uart_circ_empty(xmit) && !uart_tx_stopped(port)) {
+                        port->icount.tx++;
+                        shmac_console_putchar(port, xmit->buf[xmit->tail]);
+                        xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
+                } else
+                        break;
+        
+	if (uart_circ_empty(xmit))
+		shmac_uart_stop_tx(port);
+}
+
+static void shmac_uart_start_tx(struct uart_port *port)
+{
+        /* Start transmitting characters */
+        shmac_tx_chars(port);
+}
+
 
 static void shmac_uart_enable_ms(struct uart_port *port)
 {
@@ -77,11 +115,9 @@ static irqreturn_t shmac_uart_rxirq(int irq, void *data){
         struct uart_port *port = &shmac_port->port;
         struct tty_port *tport = &port->state->port;
         char rxchar;
-
         spin_lock(&port->lock);
         
         rxchar = readl_relaxed(port->membase + UARTn_RXDATA);
-
         port->icount.rx++;
         tty_insert_flip_char(tport, rxchar, 0);
 
@@ -106,13 +142,13 @@ static int shmac_uart_startup(struct uart_port *port)
 static void shmac_uart_shutdown(struct uart_port *port)
 {
        struct shmac_uart_port *shmac_port = to_shmac_port(port);
+       
        free_irq(port->irq, shmac_port);
 }
 
-static void shmac_uart_set_termios(struct uart_port *port, struct ktermios *new, struct ktermios *old)
+static void shmac_uart_set_termios(struct uart_port *port, struct ktermios *termios, struct ktermios *old)
 {
-	// TODO
-	/* Change the port parameters */
+        // Nothing really matters
 }
 
 static const char * shmac_uart_type(struct uart_port *port)
@@ -128,27 +164,25 @@ static void shmac_uart_release_port(struct uart_port *port)
 static int shmac_uart_request_port(struct uart_port *port)
 {
         struct shmac_uart_port *shmac_port = to_shmac_port(port);
-	
+       
         port->membase = ioremap(port->mapbase, 60);
 	if (!shmac_port->port.membase) {
                 pr_warn("failed to map memory\n");
 		return -ENOMEM;
 	}
-	/* Request memory and io for port, return EBUSY on failure*/
-	// TODO
 	return 0;
 }
 
 static void shmac_uart_config_port(struct uart_port *port, int type)
 {
 	/* Perform autoconfiguration */
-	if(type & UART_CONFIG_TYPE && !shmac_uart_request_port(port))
+      	if(type & UART_CONFIG_TYPE && !shmac_uart_request_port(port))
 		port->type = PORT_SHMACUART;
 }
 
 static int shmac_uart_verify_port(struct uart_port *port, struct serial_struct *serinfo )
 {
-	if(serinfo->type != PORT_UNKNOWN && serinfo->type != PORT_SHMACUART)
+       	if(serinfo->type != PORT_UNKNOWN && serinfo->type != PORT_SHMACUART)
 		return -EINVAL;
 	return 0;
 }
@@ -172,9 +206,9 @@ static struct uart_ops shmac_uart_port_ops = {
 	.verify_port = shmac_uart_verify_port,
 };
 
-static struct shmac_uart_port *shmac_uart_ports[1];
-#define SYS_INT_STATUS (volatile u32*)0xffff0020
-#define SYS_OUT_DATA (volatile u32*) 0xffff0000
+// SHMAC has support for 16 UARTs
+static struct shmac_uart_port *shmac_uart_ports[16];
+
 #ifdef CONFIG_SERIAL_SHMAC_UART_CONSOLE
 static void shmac_console_putchar(struct uart_port *port, int ch)
 {
@@ -195,7 +229,7 @@ static int shmac_uart_console_setup(struct console *co, char *options)
 	int bits = 8;
 	int parity = 'n';
 	int flow = 'n';
-
+        
         if (co->index < 0 || co->index >= ARRAY_SIZE(shmac_uart_ports)) {
 		unsigned i;
 		for (i = 0; i < ARRAY_SIZE(shmac_uart_ports); ++i) {
@@ -235,6 +269,8 @@ static struct uart_driver shmac_uart_reg = {
 	.owner = THIS_MODULE,
 	.driver_name = DRIVER_NAME,
 	.dev_name = DEV_NAME,
+        .major = SERIAL_SHMAC_MAJOR,
+        .minor = SERIAL_SHMAC_MINOR,
 	.nr = ARRAY_SIZE(shmac_uart_ports),
 	.cons = &shmac_uart_console,
 };
@@ -242,27 +278,19 @@ static struct uart_driver shmac_uart_reg = {
 static int shmac_uart_probe_dt(struct platform_device *pdev, struct shmac_uart_port *shmac_port)
 {
 	struct device_node *np = pdev->dev.of_node;
-	u32 location;
 	int ret;
+
 	if(!np)
 		return 1;
-	ret = of_property_read_u32(np, "location", &location);
-	if(!ret){
-		if(location > ARRAY_SIZE(shmac_uart_ports) ){
-			dev_err(&pdev->dev, "invalid location\n");
-			return -EINVAL;
-		}
-		dev_dbg(&pdev->dev, "using location %u\n", location);
-		//shmac_port->pdata.location = location;
-	} else {
-		location = 0;
-		dev_dbg(&pdev->dev, "fall back to location 0\n");
-	}
+     
 	ret = of_alias_get_id(np, "serial");
+       
 	if(ret < 0){
 		dev_err(&pdev->dev, "failed to get alias id: %d\n", ret);
 		return ret;
-	}
+	} else {
+                shmac_port->port.line = ret;
+        }
 	return 0;
 }
 
@@ -272,7 +300,7 @@ static int shmac_uart_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret, line;
         
-	shmac_port = devm_kzalloc(&pdev->dev, sizeof(struct shmac_uart_port),
+        shmac_port = devm_kzalloc(&pdev->dev, sizeof(struct shmac_uart_port),
 			   GFP_KERNEL);
 	if (shmac_port == NULL) {
 		dev_dbg(&pdev->dev, "failed to allocate private data\n");
@@ -304,10 +332,12 @@ static int shmac_uart_probe(struct platform_device *pdev)
 	ret = shmac_uart_probe_dt(pdev, shmac_port);
 	if(ret > 0){
 		/* Something wrong with device tree */
+                kfree(shmac_port);
 		return ret;
 	}
 
 	line = shmac_port->port.line;
+       
 	if(line >= 0 && line < ARRAY_SIZE(shmac_uart_ports))
 		shmac_uart_ports[line] = shmac_port;
 
