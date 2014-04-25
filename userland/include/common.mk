@@ -1,7 +1,5 @@
-AMBER_CROSSTOOL = arm-shmac-linux-uclibcgnueabi
-
-
-AS		= $(AMBER_CROSSTOOL)-as
+AMBER_CROSSTOOL = arm-rav-uclinux-uclibcgnueabi
+AS	= $(AMBER_CROSSTOOL)-as
 CC    	= $(AMBER_CROSSTOOL)-gcc
 CXX    	= $(AMBER_CROSSTOOL)-g++
 AR    	= $(AMBER_CROSSTOOL)-ar
@@ -9,7 +7,7 @@ LD    	= $(AMBER_CROSSTOOL)-ld
 DS    	= $(AMBER_CROSSTOOL)-objdump
 OC    	= $(AMBER_CROSSTOOL)-objcopy
 
-CFLAGS=-O3 -march=armv4t -std=c99 -Wall -I./
+CFLAGS=-O2 -march=armv4t -std=c99 -Wall -I./
 ASFLAGS=-march=armv4t
 
 all: $(SRC)
