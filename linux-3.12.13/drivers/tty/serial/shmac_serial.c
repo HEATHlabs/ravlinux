@@ -88,6 +88,9 @@ static void shmac_tx_chars(struct uart_port *port)
                         xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
                 } else
                         break;
+
+        if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(port);
         
 	if (uart_circ_empty(xmit))
 		shmac_uart_stop_tx(port);
