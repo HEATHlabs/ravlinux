@@ -23,7 +23,7 @@ static void __iomem *base;
 #define IRQ_ENABLE_SET		0x08
 #define IRQ_ENABLE_CLEAR	0x0c
 
-/* IRQ-domain used for mapping between virtual IRQns 
+/* IRQ-domain used for mapping between virtual IRQns
  * and HW-IRQns */
 static struct irq_domain *shmac_irq_domain;
 
@@ -38,8 +38,12 @@ static void shmac_irq_mask(struct irq_data *d)
 
     unsigned int pos = ffs(irq)-1;
 
+    /* For UART interrupts to work, make sure that timer irq does not result in uart irq being disabled */
+    if(pos != 1)
+    {
     /* Write to IRQ control register to mask interrupt */
-    writel((1 << pos),base + IRQ_ENABLE_CLEAR);
+      writel((1 << pos),base + IRQ_ENABLE_CLEAR);
+    }
 }
 
 

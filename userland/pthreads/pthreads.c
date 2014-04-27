@@ -9,7 +9,7 @@
 void *print_message_function1( void *ptr );
 void *print_message_function2( void *ptr );
 
-main()
+int main(void)
 {
      pthread_t thread1, thread2;
      const char *message1 = "Thread 1";
