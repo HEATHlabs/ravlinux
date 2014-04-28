@@ -1,0 +1,26 @@
+dir /dev 0755 0 0
+dir /dev/root 0755 0 0
+dir /usr 0755 0 0
+dir /usr/bin 0755 0 0
+dir /usr/sbin 0755 0 0
+dir /sbin 0755 0 0
+dir /home 0755 0 0
+dir /bin 0755 0 0
+dir /proc 0755 0 0
+dir /sys 0755 0 0
+dir /mnt 0755 0 0
+dir /dir 0755 0 0
+dir /etc 0755 0 0
+nod /dev/console 0755 0 0 c 5 1
+nod /dev/loop0 0644 0 0 b 7 0
+nod /dev/ttyshmc0 0644 0 0 c 204 214
+file /etc/passwd ../userland/passwd 0755 0 0
+file /.hush_history ../userland/.hush_history 0644 0 0
+file /dir/file.txt ../userland/file.txt 0755 0 0
+file /bin/busybox ../userland/busybox-1.22.1/busybox_unstripped 0755 0 0 
+file /sha1 ../../shmac/software/shmac_benchmarks/sha1/shmac.elf 0755 0 0
+file /init ../userland/init 0755 0 0
+file /program ../userland/initrc/a.out 0755 0 0
+file /etc/group ../userland/passwd 0755 0 0
+slink /bin/sh /bin/busybox 0755 0 0
+slink /bin/init /init 0755 0 0
