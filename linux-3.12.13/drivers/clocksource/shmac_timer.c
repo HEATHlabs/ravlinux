@@ -8,11 +8,13 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
+#include <linux/of.h>
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/sched_clock.h>
 #include <linux/jiffies.h>
 #include <asm/irq.h>
+#include <linux/clk.h>
 #define DEFAULT_TIMER	0
 #define TIMER_LOAD      0x00
 #define TIMER_VALUE     0x04
@@ -27,139 +29,171 @@
 #define TIMER_CTRL_SCALE_1      8
 #define TIMER_INT_CLEAR         1
 
+#define SHMAC_TIMER_CLEAR(base) writel_relaxed(TIMER_INT_CLEAR, base + TIMER_CLR);
+#define SHMAC_TIMER_STOP(base) writel_relaxed(TIMER_CTRL_DISABLE, base + TIMER_CTRL);
+#define SHMAC_TIMER_SET_VALUE(value, base) writel_relaxed(value, base + TIMER_LOAD )
+#define SHMAC_TIMER_START(base)  \
+        writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1 | TIMER_CTRL_PERIODIC\
+                        , base + TIMER_CTRL);
 
-struct shmac_timer {
-	void __iomem *control;
-	void __iomem *clear;
-	void __iomem *load;
-	void __iomem *value;
-	struct clock_event_device evt;
-	struct irqaction act;
+struct shmac_clock_event_ddata {
+        struct clock_event_device evtdev;
+        void __iomem *base;
 };
 
 static u32 ticks_per_jiffy;
+static u32 source_base;
 
-static void shmac_timer_stop(struct shmac_timer* timer)
+static void shmac_clock_event_set_mode(enum clock_event_mode mode,
+                struct clock_event_device *evtdev)
 {
-        writel_relaxed(TIMER_CTRL_DISABLE, timer->control);
+        struct shmac_clock_event_ddata *ddata =
+                container_of(evtdev, struct shmac_clock_event_ddata, evtdev);
+        printk("Modechange, base: 0x%lx, ", ddata->base);
+        switch (mode) {
+                case CLOCK_EVT_MODE_ONESHOT:
+                        printk("oneshot\n");
+                        SHMAC_TIMER_STOP(ddata->base);
+                        SHMAC_TIMER_START(ddata->base);
+                        break;
+                case CLOCK_EVT_MODE_PERIODIC:
+                        printk("periodic\n");
+                        SHMAC_TIMER_STOP(ddata->base);
+                        SHMAC_TIMER_SET_VALUE(ticks_per_jiffy,ddata->base);
+                        SHMAC_TIMER_START(ddata->base);
+                        break;
+                case CLOCK_EVT_MODE_UNUSED:
+                        break;
+                case CLOCK_EVT_MODE_SHUTDOWN:
+                        printk("shutdown\n");
+                       SHMAC_TIMER_STOP(ddata->base);
+                        break;
+                case CLOCK_EVT_MODE_RESUME:
+                        break;
+                default:
+                        WARN(1, "%s: unhandled event mode %d\n", __func__, mode);
+                        break;
+        }
 }
 
-static void shmac_timer_start(struct shmac_timer* timer, bool periodic)
-{
-        writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1
-                | (periodic ? TIMER_CTRL_PERIODIC : 0), timer->control);
-}
+static int shmac_clock_event_set_next_event(unsigned long event, struct 
+                clock_event_device *evtdev){
+	struct shmac_clock_event_ddata *ddata =
+		container_of(evtdev, struct shmac_clock_event_ddata, evtdev);
 
-static void shmac_timer_clear(struct shmac_timer* timer)
-{
-        writel_relaxed(TIMER_INT_CLEAR, timer->clear);
-}
-
-static void shmac_timer_set_value(struct shmac_timer* timer, unsigned long val)
-{
-        writel_relaxed(val, timer->load);
-}
-
-static void shmac_time_set_mode(enum clock_event_mode mode,
-        struct clock_event_device *evt_dev)
-{
-    struct shmac_timer *timer = container_of(evt_dev, struct shmac_timer, evt);
-    switch (mode) {
-        case CLOCK_EVT_MODE_ONESHOT:
-            shmac_timer_stop(timer);
-            shmac_timer_start(timer, false);
-            break;
-        case CLOCK_EVT_MODE_PERIODIC:
-            shmac_timer_stop(timer);
-            shmac_timer_set_value(timer, ticks_per_jiffy);
-            shmac_timer_start(timer, true);
-            break;
-        case CLOCK_EVT_MODE_UNUSED:
-                break;
-        case CLOCK_EVT_MODE_SHUTDOWN:
-                shmac_timer_stop(timer);
-                break;
-        case CLOCK_EVT_MODE_RESUME:
-            break;
-        default:
-            WARN(1, "%s: unhandled event mode %d\n", __func__, mode);
-            break;
-    }
-}
-
-static int shmac_time_set_next_event(unsigned long event, struct 
-                                     clock_event_device *evt_dev){
-        struct shmac_timer *timer = container_of(evt_dev, struct shmac_timer, evt);
-
-        shmac_timer_clear(timer);
-        shmac_timer_set_value(timer, event);
-        shmac_timer_start(timer, false);
+        printk("set next event val: %lu, BASE: 0x%lx\n", event,(long unsigned int)ddata->base);
+        SHMAC_TIMER_CLEAR(ddata->base);
+        SHMAC_TIMER_SET_VALUE(event, ddata->base);
+        SHMAC_TIMER_START(ddata->base);
         return 0;
 }
 
 static irqreturn_t shmac_time_interrupt(int irq, void *dev_id)
 {
-        struct shmac_timer *timer = dev_id;
-	void (*event_handler)(struct clock_event_device *) = timer->evt.event_handler;
-        shmac_timer_clear(timer);
-        event_handler(&timer->evt);
+	struct shmac_clock_event_ddata *ddata = dev_id;
+        SHMAC_TIMER_CLEAR(ddata->base);
+        ddata->evtdev.event_handler(&ddata->evtdev);
 
         return IRQ_HANDLED;
-	
+
+}
+
+static struct shmac_clock_event_ddata clock_event_ddata = {
+        .evtdev = {
+                .name = "shmac clockevent",
+                .features = CLOCK_EVT_FEAT_PERIODIC,
+                .set_mode = shmac_clock_event_set_mode,
+                .set_next_event = shmac_clock_event_set_next_event,
+                .rating = 200,
+        },
+};
+
+static struct irqaction shmac_clock_event_irq = {
+        .name = "shmac clockevent",
+        .flags = IRQF_TIMER,
+        .handler = shmac_time_interrupt,
+        .dev_id = &clock_event_ddata,
+};
+
+static void __init shmac_clocksource_init(struct device_node *node)
+{
+        void __iomem *base;
+        u32 freq;
+        
+
+        base = of_iomap(node, 0);
+        source_base = (u32) base;
+        printk("\nCLOCK SOURCE, BASE: 0x%lx\n", (long unsigned int)source_base);
+        if (!base)
+                panic("Can't remap registers");
+
+        if (of_property_read_u32(node, "clock-frequency", &freq))
+                panic("Can't read clock-frequency");
+
+        SHMAC_TIMER_CLEAR(base);
+        SHMAC_TIMER_START(base);
+
+        if(clocksource_mmio_init(base + TIMER_VALUE, "SHMAC clocksource",
+                                freq, 200, 16, clocksource_mmio_readw_down))
+                panic("Can't register clocksource\n");
+
+       
+}
+
+static void __init shmac_clockevent_init(struct device_node *np)
+{
+        void __iomem *base;
+        u32 freq;
+        int irq;
+
+        base = of_iomap(np, 0);
+        printk("\nCLOCKEVENT, BASE: 0x%lx\n", (long unsigned int)base);
+        if (!base)
+                panic("Can't remap registers");
+/*
+        clk = of_clk_get(np, 0);
+        if (IS_ERR(clk))
+                panic("UNABLE TO EXTRACT CLOCK INFORMATION FROM DEVICE TREE\n");
+*/
+        if (of_property_read_u32(np, "clock-frequency", &freq))
+                panic("Can't read clock-frequency");
+        ticks_per_jiffy = DIV_ROUND_UP(freq, HZ);
+
+        irq = irq_of_parse_and_map(np, DEFAULT_TIMER);
+        if (irq <= 0)
+                panic("Can't parse IRQ");
+
+
+        if (setup_irq(irq, &shmac_clock_event_irq))
+                panic("Can't set up timer IRQ\n");
+
+        clock_event_ddata.base = base;
+        clockevents_config_and_register(&clock_event_ddata.evtdev, freq, 0xf, 0xffff);
+        printk("Clockevent config done: \n");
 }
 
 static void __init shmac_timer_init(struct device_node *node)
 {
-	void __iomem *base;
-	u32 freq;
-	int irq;
-	struct shmac_timer *timer;
+        static int has_clocksource, has_clockevent;
 
-	base = of_iomap(node, 0);
-	if (!base)
-		panic("Can't remap registers");
+        if(!has_clockevent)
+        {
+                shmac_clockevent_init(node);
+                has_clockevent = 1;
+                return;
+        }
 
-	if (of_property_read_u32(node, "clock-frequency", &freq))
-		panic("Can't read clock-frequency");
+        if(!has_clocksource)
+        {
+                shmac_clocksource_init(node);
+                has_clocksource = 1;
+                return;
+        }
 
-	if(clocksource_mmio_init(base + TIMER_VALUE, node->name,
-                                 freq, 300, 24, clocksource_mmio_readl_up))
-                panic("Can't register clocksource\n");
 
-	irq = irq_of_parse_and_map(node, DEFAULT_TIMER);
-	if (irq <= 0)
-		panic("Can't parse IRQ");
 
-	timer = kzalloc(sizeof(*timer), GFP_KERNEL);
-	if (!timer)
-		panic("Can't allocate timer struct\n");
-
-        timer->control  = base + TIMER_CTRL;
-        timer->clear    = base + TIMER_CLR;
-        timer->load     = base + TIMER_LOAD;
-        timer->value    = base + TIMER_VALUE;
-
-        timer->evt.name = node->name;
-	timer->evt.rating = 300;
-	timer->evt.features = CLOCK_EVT_FEAT_PERIODIC;
-	timer->evt.set_mode = shmac_time_set_mode;
-	timer->evt.set_next_event = shmac_time_set_next_event;
-	timer->evt.cpumask = cpumask_of(0);
-
-	timer->act.name = node->name;
-	timer->act.flags = IRQF_TIMER | IRQF_SHARED;
-	timer->act.dev_id = timer;
-	timer->act.handler = shmac_time_interrupt;
-
-        ticks_per_jiffy = DIV_ROUND_UP(freq, HZ);
-       
-	if (setup_irq(irq, &timer->act))
-		panic("Can't set up timer IRQ\n");
-
-	clockevents_config_and_register(&timer->evt, freq, 0xf, 0xffff);
-
-	pr_info("shmac: system timer (irq = %d)\n", irq);
 }
+
 CLOCKSOURCE_OF_DECLARE(shmac, "shmac,shmac-timer",
-			shmac_timer_init);
+                shmac_timer_init);
 

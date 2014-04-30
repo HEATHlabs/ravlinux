@@ -25,7 +25,7 @@
                         interrupt-controller;
                         #interrupt-cells = <1>;
                         clear-mask = <0xffffffff>;
-                        valid-mask = <0x00000006>;
+                        valid-mask = <0x0000000f>;
                 };
 
                 uart0: uart@ffff0000 {
@@ -35,11 +35,18 @@
                         status = "ok";
                 };
 
-                timer@fffe1000 {
+                timer0: timer@fffe1000 {
                         compatible = "shmac,shmac-timer";
                         reg = <0xfffe1000 0x20>;
                         clock-frequency = <60000000>;
                         interrupts = <2>;
+                };
+
+                timer1: timer@fffe1100 {
+                        compatible = "shmac,shmac-timer";
+                        reg = <0xfffe1100 0x20>;
+                        clock-frequency = <60000000>;
+                        interrupts = <3>;
                 };
         };
 };
