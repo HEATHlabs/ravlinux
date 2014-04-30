@@ -4,11 +4,11 @@
 # SB -> ip to shmacbox
 # RL -> path to ravlinux repo /home/lol/ravlinux (no slash at end)
 
-# Where should our 'workspace' be ?
-DIR=/home/arv3
-
 # Username to shmacbox
-UNAME=arv3
+UNAME=pi
+
+# Where should our 'workspace' be ?
+DIR=/home/$UNAME
 
 if [[ $1 == *b* ]]
 then
@@ -79,21 +79,27 @@ fi
 if [[ $1 == *s* ]]
 then
   scp $RL/scripts/to_shmac_host/ravrun.sh $UNAME@$SB:$DIR/ravrun.sh
+
+  #Create the zero file, used for zeroing out the memory of the FPGA
+  ssh  $UNAME@$SB "cd $DIR; file zeroes &> /dev/null || dd if=/dev/zero of=zeroes bs=1k count=32"
 fi
 
 if [[ $1 == *h* ]] || [[ $# -eq 0 ]]
 then
-  echo "Usage: ravrun.sh {[bld] | m [SIZE_IN_BYTES]}"
-  echo " l - LINUX "
-  echo " d - DEVICE TREE BLOB"
-  echo " b - BOOTLOADER"
+  echo "Usage: ravrun {[rldbush] || m [SIZE_IN_BYTES]}"
+  echo " r - Run"
   echo " -------------------- "
-  echo " u - Compile all userland applications"
-  echo " s - copy run script to host"
+  echo " l - Compile and upload LINUX "
+  echo " d - Compile and upload DEVICE TREE BLOB"
+  echo " b - Compile and upload BOOTLOADER"
+  echo " -------------------- "
+  echo " u - Compile and upload all userland applications"
+  echo " s - Copy run script to host"
   echo " m [bytes] - Dump bytes from memory"
+  echo " h - display this help message"
 fi
 
-if [[ $1 == *d* ]] || [[ $1 == *l* ]] || [[ $1 == *b* ]]
+if [[ $1 == *r* ]]
 then
   echo "Executing"
   ssh $UNAME@$SB "cd $DIR;./ravrun.sh"
