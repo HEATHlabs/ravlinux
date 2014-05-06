@@ -1,21 +1,17 @@
-AMBER_CROSSTOOL = arm-rav-uclinux-uclibcgnueabi
-AS	= $(AMBER_CROSSTOOL)-as
-CC    	= $(AMBER_CROSSTOOL)-gcc
-CXX    	= $(AMBER_CROSSTOOL)-g++
-AR    	= $(AMBER_CROSSTOOL)-ar
-LD    	= $(AMBER_CROSSTOOL)-ld
-DS    	= $(AMBER_CROSSTOOL)-objdump
-OC    	= $(AMBER_CROSSTOOL)-objcopy
+RAV_CROSSTOOL = arm-rav-uclinux-uclibcgnueabi
+AS	= $(RAV_CROSSTOOL)-as
+CC    	= $(RAV_CROSSTOOL)-gcc
+CXX    	= $(RAV_CROSSTOOL)-g++
+AR    	= $(RAV_CROSSTOOL)-ar
+LD    	= $(RAV_CROSSTOOL)-ld
+DS    	= $(RAV_CROSSTOOL)-objdump
+OC    	= $(RAV_CROSSTOOL)-objcopy
 
-CFLAGS=-O2 -march=armv4t -std=c99 -Wall -I./
+CFLAGS=-O2 -march=armv4t -std=c99 -Wall -I../include
 ASFLAGS=-march=armv4t
 
 all: $(SRC)
 	$(CC) $(CFLAGS) -o $(TGT) $(SRC)
-
-
-#$(TGT) : $(SRC)
-#	$(CC) $(CFLAGS) -o $(TGT) $(SRC)
 
 .PHONY : clean
 clean:
