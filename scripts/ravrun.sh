@@ -7,8 +7,23 @@
 # Username to shmacbox
 UNAME=pi
 
-# Where should our 'workspace' be ?
+# Where shoul:d our 'workspace' be ?
 DIR=/home/$UNAME
+
+if [[ $1 == *u* ]]
+then
+    # Compile all userland applications
+    for dir in $(find $RL/userland/ -maxdepth 1 -mindepth 1 -type d | xargs -n1 basename | grep -v include)
+    do
+        # Temp variables
+        dir=${dir%*/}
+        app=${dir##*/}
+        appdir=$RL/userland/$app
+
+        # Now compile and copy to ramdisk
+        make -C $appdir               
+    done
+fi
 
 if [[ $1 == *b* ]]
 then
@@ -29,25 +44,6 @@ then
   echo "Uploading Device Tree Blob to SHMACBOX"
   make -C $RL/linux-3.12.13 dtbs
   scp $RL/linux-3.12.13/arch/arm/boot/dts/shmac.dtb $UNAME@$SB:$DIR/dtb.bin
-fi
-
-
-if [[ $1 == *u* ]]
-then
-    # Compile all userland applications
-    for dir in $(find $RL/userland/ -maxdepth 1 -mindepth 1 -type d | xargs -n1 basename | grep -v include)
-    do
-        # Temp variables
-        dir=${dir%*/}
-        app=${dir##*/}
-        appdir=$RL/userland/$app
-
-        # Now compile and copy to ramdisk
-        echo "Adding application $app to ramdisk"
-        make -C $appdir
-        chmod +x $appdir/$app #\.flt
-        sudo cp $appdir/$app $RL/ramdiskmnt/$app
-    done
 fi
 
 
@@ -81,7 +77,7 @@ then
   scp $RL/scripts/to_shmac_host/ravrun.sh $UNAME@$SB:$DIR/ravrun.sh
 
   #Create the zero file, used for zeroing out the memory of the FPGA
-  ssh  $UNAME@$SB "cd $DIR; file zeroes &> /dev/null || dd if=/dev/zero of=zeroes bs=1k count=32"
+  ssh  $UNAME@$SB "cd $DIR; file zeroes &> /dev/null || dd if=/dev/zero of=zeroes bs=1M count=32"
 fi
 
 if [[ $1 == *h* ]] || [[ $# -eq 0 ]]
