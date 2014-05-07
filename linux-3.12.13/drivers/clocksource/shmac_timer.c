@@ -35,6 +35,7 @@
 #define SHMAC_TIMER_START(base)  \
         writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1 | TIMER_CTRL_PERIODIC\
                         , base + TIMER_CTRL);
+#define SHMAC_SYSTEM_TICK_COUNTER (const volatile void *)0xffff0030
 
 struct shmac_clock_event_ddata {
         struct clock_event_device evtdev;
@@ -139,6 +140,10 @@ static void __init shmac_clocksource_init(struct device_node *node)
 
        
 }
+static u32 notrace shmac_sched_clock_read(void)
+{
+        return readl(SHMAC_SYSTEM_TICK_COUNTER);
+}
 
 static void __init shmac_clockevent_init(struct device_node *np)
 {
@@ -170,6 +175,7 @@ static void __init shmac_clockevent_init(struct device_node *np)
         clock_event_ddata.base = base;
         clockevents_config_and_register(&clock_event_ddata.evtdev, freq, 0xf, 0xffff);
         printk("Clockevent config done: \n");
+        setup_sched_clock(shmac_sched_clock_read, 32, freq/1024);
 }
 
 static void __init shmac_timer_init(struct device_node *node)
