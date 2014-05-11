@@ -31,7 +31,8 @@
 
 #define SHMAC_TIMER_CLEAR(base) writel_relaxed(TIMER_INT_CLEAR, base + TIMER_CLR);
 #define SHMAC_TIMER_STOP(base) writel_relaxed(TIMER_CTRL_DISABLE, base + TIMER_CTRL);
-#define SHMAC_TIMER_SET_VALUE(value, base) writel_relaxed(value, base + TIMER_LOAD )
+// the timer load register has an implicit left shift with 8, compensate for it here.
+#define SHMAC_TIMER_SET_VALUE(value, base) writel_relaxed(value>>8, base + TIMER_LOAD )
 #define SHMAC_TIMER_START(base)  \
         writel_relaxed(TIMER_CTRL_ENABLE | TIMER_CTRL_SCALE_1 | TIMER_CTRL_PERIODIC\
                         , base + TIMER_CTRL);
@@ -45,12 +46,16 @@ struct shmac_clock_event_ddata {
 static u32 ticks_per_jiffy;
 static u32 source_base;
 
+// The timer read register has an implicit right shift with 8, compensate for it here
+cycle_t shmac_clocksource_mmio_readl_down(struct clocksource *c){
+        return clocksource_mmio_readw_down(c)<<8;
+}
+
 static void shmac_clock_event_set_mode(enum clock_event_mode mode,
                 struct clock_event_device *evtdev)
 {
         struct shmac_clock_event_ddata *ddata =
                 container_of(evtdev, struct shmac_clock_event_ddata, evtdev);
-        printk("Modechange, base: 0x%lx, ", ddata->base);
         switch (mode) {
                 case CLOCK_EVT_MODE_ONESHOT:
                         printk("oneshot\n");
@@ -60,6 +65,7 @@ static void shmac_clock_event_set_mode(enum clock_event_mode mode,
                 case CLOCK_EVT_MODE_PERIODIC:
                         printk("periodic\n");
                         SHMAC_TIMER_STOP(ddata->base);
+                        //
                         SHMAC_TIMER_SET_VALUE(ticks_per_jiffy,ddata->base);
                         SHMAC_TIMER_START(ddata->base);
                         break;
@@ -135,7 +141,7 @@ static void __init shmac_clocksource_init(struct device_node *node)
         SHMAC_TIMER_START(base);
 
         if(clocksource_mmio_init(base + TIMER_VALUE, "SHMAC clocksource",
-                                freq, 200, 16, clocksource_mmio_readw_down))
+                                freq, 200, 24, shmac_clocksource_mmio_readl_down))
                 panic("Can't register clocksource\n");
 
        
@@ -155,13 +161,10 @@ static void __init shmac_clockevent_init(struct device_node *np)
         printk("\nCLOCKEVENT, BASE: 0x%lx\n", (long unsigned int)base);
         if (!base)
                 panic("Can't remap registers");
-/*
-        clk = of_clk_get(np, 0);
-        if (IS_ERR(clk))
-                panic("UNABLE TO EXTRACT CLOCK INFORMATION FROM DEVICE TREE\n");
-*/
+
         if (of_property_read_u32(np, "clock-frequency", &freq))
                 panic("Can't read clock-frequency");
+
         ticks_per_jiffy = DIV_ROUND_UP(freq, HZ);
 
         irq = irq_of_parse_and_map(np, DEFAULT_TIMER);
