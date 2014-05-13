@@ -83,7 +83,7 @@ static asmlinkage void __exception_irq_entry shmac_handle_irq(struct pt_regs *re
 static int shmac_irqdomain_map(struct irq_domain *d, unsigned int irq,
         irq_hw_number_t hwirq)
 {
-    printk("IRQ: Callback irqnr: %d, assigned with:%d\n",(int) hwirq,irq);
+    pr_info("IRQ: Callback irqnr: %d, assigned with:%d\n",(int) hwirq,irq);
     irq_set_chip_and_handler(irq, &shmac_irq_chip, handle_level_irq);
     set_irq_flags(irq, IRQF_VALID);
     return 0;

@@ -1062,8 +1062,7 @@ void ida_remove(struct ida *ida, int id)
 	return;
 
  err:
-        return;
-	//WARN(1, "ida_remove called for id=%d which is not allocated.\n", id);
+	WARN(1, "ida_remove called for id=%d which is not allocated.\n", id);
 }
 EXPORT_SYMBOL(ida_remove);
 

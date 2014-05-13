@@ -5,7 +5,7 @@
 # RL -> path to ravlinux repo /home/lol/ravlinux (no slash at end)
 
 # Username to shmacbox
-UNAME=pi
+UNAME=$SBUNAME
 
 # Where shoul:d our 'workspace' be ?
 DIR=/home/$UNAME

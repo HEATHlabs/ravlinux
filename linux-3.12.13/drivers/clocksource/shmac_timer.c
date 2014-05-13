@@ -15,6 +15,7 @@
 #include <linux/jiffies.h>
 #include <asm/irq.h>
 #include <linux/clk.h>
+
 #define DEFAULT_TIMER	0
 #define TIMER_LOAD      0x00
 #define TIMER_VALUE     0x04
@@ -58,21 +59,17 @@ static void shmac_clock_event_set_mode(enum clock_event_mode mode,
                 container_of(evtdev, struct shmac_clock_event_ddata, evtdev);
         switch (mode) {
                 case CLOCK_EVT_MODE_ONESHOT:
-                        printk("oneshot\n");
                         SHMAC_TIMER_STOP(ddata->base);
                         SHMAC_TIMER_START(ddata->base);
                         break;
                 case CLOCK_EVT_MODE_PERIODIC:
-                        printk("periodic\n");
                         SHMAC_TIMER_STOP(ddata->base);
-                        //
                         SHMAC_TIMER_SET_VALUE(ticks_per_jiffy,ddata->base);
                         SHMAC_TIMER_START(ddata->base);
                         break;
                 case CLOCK_EVT_MODE_UNUSED:
                         break;
                 case CLOCK_EVT_MODE_SHUTDOWN:
-                        printk("shutdown\n");
                        SHMAC_TIMER_STOP(ddata->base);
                         break;
                 case CLOCK_EVT_MODE_RESUME:
@@ -88,7 +85,6 @@ static int shmac_clock_event_set_next_event(unsigned long event, struct
 	struct shmac_clock_event_ddata *ddata =
 		container_of(evtdev, struct shmac_clock_event_ddata, evtdev);
 
-        printk("set next event val: %lu, BASE: 0x%lx\n", event,(long unsigned int)ddata->base);
         SHMAC_TIMER_CLEAR(ddata->base);
         SHMAC_TIMER_SET_VALUE(event, ddata->base);
         SHMAC_TIMER_START(ddata->base);
@@ -122,6 +118,11 @@ static struct irqaction shmac_clock_event_irq = {
         .dev_id = &clock_event_ddata,
 };
 
+static u32 notrace shmac_sched_clock_read(void)
+{
+        return readl(SHMAC_SYSTEM_TICK_COUNTER);
+}
+
 static void __init shmac_clocksource_init(struct device_node *node)
 {
         void __iomem *base;
@@ -130,7 +131,6 @@ static void __init shmac_clocksource_init(struct device_node *node)
 
         base = of_iomap(node, 0);
         source_base = (u32) base;
-        printk("\nCLOCK SOURCE, BASE: 0x%lx\n", (long unsigned int)source_base);
         if (!base)
                 panic("Can't remap registers");
 
@@ -139,16 +139,17 @@ static void __init shmac_clocksource_init(struct device_node *node)
 
         SHMAC_TIMER_CLEAR(base);
         SHMAC_TIMER_START(base);
-
+        
+        setup_sched_clock(shmac_sched_clock_read, 32, freq/1024);
+        /* Schedule a clock read from system tick counter instead of using the
+           timer value as a clocksource.
+   
         if(clocksource_mmio_init(base + TIMER_VALUE, "SHMAC clocksource",
-                                freq, 200, 24, shmac_clocksource_mmio_readl_down))
+                               freq, 200, 24, shmac_clocksource_mmio_readl_down))
                 panic("Can't register clocksource\n");
-
+        */
+        pr_info("SHMAC clocksource init done\n");
        
-}
-static u32 notrace shmac_sched_clock_read(void)
-{
-        return readl(SHMAC_SYSTEM_TICK_COUNTER);
 }
 
 static void __init shmac_clockevent_init(struct device_node *np)
@@ -158,8 +159,7 @@ static void __init shmac_clockevent_init(struct device_node *np)
         int irq;
 
         base = of_iomap(np, 0);
-        printk("\nCLOCKEVENT, BASE: 0x%lx\n", (long unsigned int)base);
-        if (!base)
+                if (!base)
                 panic("Can't remap registers");
 
         if (of_property_read_u32(np, "clock-frequency", &freq))
@@ -177,8 +177,8 @@ static void __init shmac_clockevent_init(struct device_node *np)
 
         clock_event_ddata.base = base;
         clockevents_config_and_register(&clock_event_ddata.evtdev, freq, 0xf, 0xffff);
-        printk("Clockevent config done: \n");
-        setup_sched_clock(shmac_sched_clock_read, 32, freq/1024);
+        
+        pr_info("SHMAC clockevent init done\n");
 }
 
 static void __init shmac_timer_init(struct device_node *node)
@@ -198,9 +198,6 @@ static void __init shmac_timer_init(struct device_node *node)
                 has_clocksource = 1;
                 return;
         }
-
-
-
 }
 
 CLOCKSOURCE_OF_DECLARE(shmac, "shmac,shmac-timer",

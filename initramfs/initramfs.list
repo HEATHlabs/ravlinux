@@ -11,6 +11,7 @@ dir /sys 0755 0 0
 dir /mnt 0755 0 0
 dir /dir 0755 0 0
 dir /etc 0755 0 0
+dir /etc/init.d 0755 0 0
 dir /tmp 0755 0 0
 dir /var 0755 0 0
 nod /dev/console 0755 0 0 c 5 1
@@ -18,5 +19,24 @@ nod /dev/loop0 0644 0 0 b 7 0
 nod /dev/ttyshmc0 0644 0 0 c 204 214
 file /bin/busybox ../userland/busybox-1.22.1/busybox_unstripped 0755 0 0 
 file /init ../initramfs/init 0755 0 0
+file /etc/inittab ../initramfs/etc/inittab 0755 0 0
+file /etc/init.d/rcS ../initramfs/etc/init.d/rcS 0755 0 0
+file /printf_test ../userland/printf_test/printf_test 0755 0 0
+file /signals ../userland/signals/signals 0755 0 0
+file /fib ../userland/fib/fib 0755 0 0
+file /fib_fork ../userland/fib_fork/fib_fork 0755 0 0
+file /fib.c ../userland/fib/fib.c 0755 0 0
+file /fib_fork.c ../userland/fib_fork/fib_fork.c 0755 0 0
+file /sha1 ../../shmac/software/shmac_benchmarks/sha1/shmac.elf 0755 0 0
+file /sudoku ../../shmac/software/shmac_benchmarks/sudoku/shmac.elf 0755 0 0
+file /dhrystone ../userland/dhrystone 0755 0 0
+file /qsort_small ../../shmac/software/shmac_benchmarks/automotive/qsort/qsort_small.bin 0755 0 0
+file /input_small.dat ../../shmac/software/shmac_benchmarks/automotive/qsort/input_small.dat 0755 0 0
+file /basicmath_small ../../shmac/software/shmac_benchmarks/automotive/basicmath/basicmath_small.bin 0755 0 0
+file /basicmath_large ../../shmac/software/shmac_benchmarks/automotive/basicmath/basicmath_large.bin 0755 0 0
+file /bitcount ../../shmac/software/shmac_benchmarks/automotive/bitcount/bitcnts.bin 0755 0 0
+file /dijkstra ../../shmac/software/shmac_benchmarks/network/dijkstra/dijkstra_large.bin 0755 0 0
+file /time_example ../userland/time_example/time_example 0755 0 0
+file /bw_file_rd ../userland/lmbench/bw_file_rd 0755 0 0
 slink /bin/sh /bin/busybox 0755 0 0
 slink /bin/init /init 0755 0 0

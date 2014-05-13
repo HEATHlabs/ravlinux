@@ -851,7 +851,7 @@ config ARCH_SHMAC
        select IRQ_DOMAIN
        select MULTI_IRQ_HANDLER
        select CLKSRC_SHMAC
-	   select CLKSRC_MMIO
+       select CLKSRC_MMIO
        select CLKSRC_OF
        select COMMON_CLK
        select GENERIC_CLOCKEVENTS
@@ -1600,7 +1600,7 @@ endchoice
 
 config PAGE_OFFSET
 	hex
-  default PHYS_OFFSET if !MMU
+	default PHYS_OFFSET if !MMU
 	default 0x40000000 if VMSPLIT_1G
 	default 0x80000000 if VMSPLIT_2G
 	default 0xC0000000

@@ -81,10 +81,10 @@ choice
 	prompt "Kernel low-level debugging port"
 	depends on DEBUG_LL
 
-    config DEBUG_SHMAC
-        bool "Kernel low level debugging via SHMAC system registers"
+	config DEBUG_SHMAC
+		bool "Kernel low level debugging via SHMAC system registers"
 
-    config AT91_DEBUG_LL_DBGU0
+	config AT91_DEBUG_LL_DBGU0
 		bool "Kernel low-level debugging on rm9200, 9260/9g20, 9261/9g10 and 9rl"
 		depends on HAVE_AT91_DBGU0
 
@@ -885,7 +885,7 @@ config DEBUG_STI_UART
 
 config DEBUG_LL_INCLUDE
 	string
-    	default "debug/shmac.S" if DEBUG_SHMAC
+	default "debug/shmac.S" if DEBUG_SHMAC
 	default "debug/8250.S" if DEBUG_LL_UART_8250 || DEBUG_UART_8250
 	default "debug/pl01x.S" if DEBUG_LL_UART_PL01X || DEBUG_UART_PL01X
 	default "debug/exynos.S" if DEBUG_EXYNOS_UART

@@ -291,7 +291,7 @@ void calibrate_delay(void)
 	} else {
 		if (!printed)
 			pr_info("Calibrating delay loop... ");
-		  lpj = calibrate_delay_converge();
+		lpj = calibrate_delay_converge();
 	}
 	per_cpu(cpu_loops_per_jiffy, this_cpu) = lpj;
 	if (!printed)

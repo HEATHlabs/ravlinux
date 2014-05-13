@@ -14,7 +14,6 @@
 #include <linux/clk.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
-#include <mach/debug-shmac.h>
 
 #define DRIVER_NAME "shmac-uart"
 #define DEV_NAME "ttyshmc"
@@ -404,7 +403,7 @@ static int __init shmac_serial_init(void)
 	if (ret){
 		uart_unregister_driver(&shmac_uart_reg);
         }
-        pr_info("SHMAC UART DRIVER\n");
+        pr_info("SHMAC serial init done\n");
 	return ret;
 }
 
