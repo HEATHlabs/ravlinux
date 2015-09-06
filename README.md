@@ -19,3 +19,27 @@ apt-get install gawk
 apt-get install libtool
 apt-get install automake
 apt-get install zlib1g-dev
+
+updates 9/5/15
+export PATH=$PATH:$HOME/x-tools/arm-rav-uclinux-uclibcgnueabi/bin
+
+linux: 
+export ARCH=arm
+
+make menuconfig
+   -> General setup
+        ->Initramfs source file(s)
+             -> ~/src/ravlinux-master/initramfs/initramfs.list
+
+cd ravlinux             
+mkdir ../initramfs
+cp -R initramfs/ ../initramfs/
+
+mkdir ~/src/initramfs/etc
+cp ~/src/userland/busybox-1.22.1/examples/bootfloppy/etc/* ~/src/initramfs/etc
+
+make menuconfig
+   -> boot options
+       -> ENABLE Use appended device tree blob to zImage (EXPERIMENTAL)
+then build shmac.dtb and cat shmac.dtb >> linux/arch/arm/boot/Image
+
